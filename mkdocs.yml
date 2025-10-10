@@ -1,0 +1,76 @@
+site_name: U25 Survey Documentation
+site_description: Documentation for U25 survey data and variables
+site_author: CorrelAid
+
+# Repository
+repo_url: https://github.com/CorrelAid/CDL
+edit_uri: edit/main/U25/docs/
+
+theme:
+  name: material
+  logo: assets/logo.jpg
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
+    - toc.follow
+    - content.code.copy
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+# Navigation structure
+nav:
+  - Survey Documentation: survey_documentation.md
+
+# Extensions
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+
+# Search
+plugins:
+  - search:
+      lang: en
+      separator: '[\s\-\.]'
+
+# Output directory
+docs_dir: docs
+site_dir: site
+
+# Extra CSS
+extra_css:
+  - stylesheets/extra.css

@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+.claude/
+
+.env
+.env_encoded
+
+# MkDocs
+site/
+out/
+
+# Database files
+data/
+*.duckdb
+*.duckdb.wal
+
+cache/
