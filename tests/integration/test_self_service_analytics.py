@@ -13,7 +13,7 @@ from plumberlama.io.database import query_database, save_to_database
 
 
 def test_self_service_get_question_metadata(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test retrieving metadata for a specific question - typical self-service query."""
     table_prefix = "test_self_service_meta"
@@ -24,6 +24,7 @@ def test_self_service_get_question_metadata(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Self-service query: Get all metadata for a specific question
@@ -39,7 +40,7 @@ def test_self_service_get_question_metadata(
 
 
 def test_self_service_frequency_analysis(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test frequency analysis with labels - typical self-service analytics."""
     table_prefix = "test_self_service_freq"
@@ -54,6 +55,7 @@ def test_self_service_frequency_analysis(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Self-service query: Get frequency distribution for a choice question
@@ -75,7 +77,7 @@ def test_self_service_frequency_analysis(
 
 
 def test_self_service_time_series_analysis(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test analyzing data across multiple waves using load_counter."""
     table_prefix = "test_self_service_timeseries"
@@ -91,6 +93,7 @@ def test_self_service_time_series_analysis(
             metadata_df=sample_processed_metadata.final_metadata_df,
             table_prefix=table_prefix,
             append=(wave > 0),
+            config=test_db_config,
         )
 
     # Self-service query: Analyze trends across waves
@@ -113,7 +116,7 @@ def test_self_service_time_series_analysis(
 
 
 def test_self_service_matrix_question_analysis(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test analyzing matrix questions with scale labels for visualization."""
     table_prefix = "test_self_service_matrix"
@@ -127,6 +130,7 @@ def test_self_service_matrix_question_analysis(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Self-service query: Get matrix question data with labels for charting

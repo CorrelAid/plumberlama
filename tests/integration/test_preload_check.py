@@ -6,50 +6,31 @@ tables match the current survey structure before loading new data.
 
 import pytest
 
-from plumberlama.config import Config
 from plumberlama.io.database import save_to_database
 from plumberlama.states import PreloadCheckState
 from plumberlama.transitions import preload_check
 
 
-@pytest.fixture
-def test_config(db_connection):
-    """Create a test configuration for preload checks with test database."""
-    return Config(
-        survey_id="test_preload_survey",
-        lp_poll_id=123,
-        lp_api_token="test_token",
-        lp_api_base_url="https://test.example.com",
-        llm_model="test-model",
-        llm_key="test-key",
-        llm_base_url="https://test.example.com",
-        doc_output_dir="/tmp/test_docs",
-        db_host="localhost",
-        db_port=5433,
-        db_name="test_db",
-        db_user="test_user",
-        db_password="test_password",
-    )
-
-
-def test_preload_check_no_existing_tables(test_config, sample_processed_metadata):
+def test_preload_check_no_existing_tables(
+    test_db_config, sample_processed_metadata, db_connection
+):
     """Test preload check when no tables exist (first load)."""
     # Ensure tables don't exist by using a unique survey ID
-    test_config.survey_id = "test_preload_first_load"
+    test_db_config.survey_id = "test_preload_first_load"
 
-    result = preload_check(test_config, sample_processed_metadata)
+    result = preload_check(test_db_config, sample_processed_metadata)
 
     assert isinstance(result, PreloadCheckState)
     assert result.load_counter == 0
 
 
 def test_preload_check_matching_metadata(
-    test_config, sample_processed_metadata, sample_processed_results, db_connection
+    test_db_config, sample_processed_metadata, sample_processed_results, db_connection
 ):
     """Test preload check when existing metadata matches current metadata."""
     import polars as pl
 
-    test_config.survey_id = "test_preload_matching"
+    test_db_config.survey_id = "test_preload_matching"
 
     # Add load_counter column (this is normally added by load_data transition)
     results_with_counter = sample_processed_results.results_df.with_columns(
@@ -60,22 +41,23 @@ def test_preload_check_matching_metadata(
     save_to_database(
         results_df=results_with_counter,
         metadata_df=sample_processed_metadata.final_metadata_df,
-        table_prefix=test_config.survey_id,
+        table_prefix=test_db_config.survey_id,
         append=False,
+        config=test_db_config,
     )
 
     # Validate metadata matches
-    result = preload_check(test_config, sample_processed_metadata)
+    result = preload_check(test_db_config, sample_processed_metadata)
 
     assert isinstance(result, PreloadCheckState)
     assert result.load_counter > 0
 
 
 def test_preload_check_mismatched_variable_count(
-    test_config, sample_processed_metadata, db_connection
+    test_db_config, sample_processed_metadata, db_connection
 ):
     """Test preload check fails when variable count differs."""
-    test_config.survey_id = "test_preload_count_mismatch"
+    test_db_config.survey_id = "test_preload_count_mismatch"
 
     # Save original metadata
     save_to_database(
@@ -83,8 +65,9 @@ def test_preload_check_mismatched_variable_count(
             1
         ),  # Dummy results df
         metadata_df=sample_processed_metadata.final_metadata_df,
-        table_prefix=test_config.survey_id,
+        table_prefix=test_db_config.survey_id,
         append=False,
+        config=test_db_config,
     )
 
     # Try to validate with fewer variables
@@ -99,16 +82,16 @@ def test_preload_check_mismatched_variable_count(
     from plumberlama.transitions import MetadataMismatchError
 
     with pytest.raises(MetadataMismatchError, match="Metadata schema mismatch"):
-        preload_check(test_config, modified_metadata)
+        preload_check(test_db_config, modified_metadata)
 
 
 def test_preload_check_mismatched_variable_ids(
-    test_config, sample_processed_metadata, db_connection
+    test_db_config, sample_processed_metadata, db_connection
 ):
     """Test preload check fails when variable IDs differ."""
     import polars as pl
 
-    test_config.survey_id = "test_preload_id_mismatch"
+    test_db_config.survey_id = "test_preload_id_mismatch"
 
     # Save original metadata
     save_to_database(
@@ -116,8 +99,9 @@ def test_preload_check_mismatched_variable_ids(
             1
         ),  # Dummy results df
         metadata_df=sample_processed_metadata.final_metadata_df,
-        table_prefix=test_config.survey_id,
+        table_prefix=test_db_config.survey_id,
         append=False,
+        config=test_db_config,
     )
 
     # Modify metadata by changing one original_id
@@ -141,16 +125,16 @@ def test_preload_check_mismatched_variable_ids(
     from plumberlama.transitions import MetadataMismatchError
 
     with pytest.raises(MetadataMismatchError, match="Metadata schema mismatch"):
-        preload_check(test_config, modified_metadata)
+        preload_check(test_db_config, modified_metadata)
 
 
 def test_preload_check_mismatched_question_types(
-    test_config, sample_processed_metadata, db_connection
+    test_db_config, sample_processed_metadata, db_connection
 ):
     """Test preload check fails when question types differ."""
     import polars as pl
 
-    test_config.survey_id = "test_preload_type_mismatch"
+    test_db_config.survey_id = "test_preload_type_mismatch"
 
     # Save original metadata
     save_to_database(
@@ -158,8 +142,9 @@ def test_preload_check_mismatched_question_types(
             1
         ),  # Dummy results df
         metadata_df=sample_processed_metadata.final_metadata_df,
-        table_prefix=test_config.survey_id,
+        table_prefix=test_db_config.survey_id,
         append=False,
+        config=test_db_config,
     )
 
     # Modify metadata by changing a question type
@@ -182,11 +167,11 @@ def test_preload_check_mismatched_question_types(
     from plumberlama.transitions import MetadataMismatchError
 
     with pytest.raises(MetadataMismatchError, match="Metadata schema mismatch"):
-        preload_check(test_config, modified_metadata)
+        preload_check(test_db_config, modified_metadata)
 
 
 def test_preload_check_renamed_variables_allowed(
-    test_config, sample_processed_metadata, db_connection
+    test_db_config, sample_processed_metadata, db_connection
 ):
     """Test that preload check allows changes to renamed variable IDs.
 
@@ -195,7 +180,7 @@ def test_preload_check_renamed_variables_allowed(
     """
     import polars as pl
 
-    test_config.survey_id = "test_preload_rename_allowed"
+    test_db_config.survey_id = "test_preload_rename_allowed"
 
     # Create dummy results with load_counter
     dummy_results = sample_processed_metadata.final_metadata_df.head(1).with_columns(
@@ -206,8 +191,9 @@ def test_preload_check_renamed_variables_allowed(
     save_to_database(
         results_df=dummy_results,
         metadata_df=sample_processed_metadata.final_metadata_df,
-        table_prefix=test_config.survey_id,
+        table_prefix=test_db_config.survey_id,
         append=False,
+        config=test_db_config,
     )
 
     # Modify only the renamed 'id' column (should still pass)
@@ -229,5 +215,5 @@ def test_preload_check_renamed_variables_allowed(
     )
 
     # This should pass because we only check original_id and question_type
-    result = preload_check(test_config, modified_metadata)
+    result = preload_check(test_db_config, modified_metadata)
     assert isinstance(result, PreloadCheckState)

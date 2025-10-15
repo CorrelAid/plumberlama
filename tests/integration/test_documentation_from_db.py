@@ -17,7 +17,10 @@ from plumberlama.transitions import TableNotFoundError, generate_doc
 
 @pytest.fixture
 def survey_in_database(
-    sample_processed_metadata, sample_processed_results, db_connection
+    sample_processed_metadata,
+    sample_processed_results,
+    test_config_for_docs,
+    db_connection,
 ):
     """Prepare database with survey data for documentation testing."""
     survey_id = "test_doc_survey"
@@ -33,29 +36,52 @@ def survey_in_database(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=survey_id,
         append=False,
+        config=test_config_for_docs,
     )
 
     return survey_id
 
 
-def test_generate_doc_from_database(survey_in_database, real_config, db_connection):
+@pytest.fixture
+def test_config_for_docs(real_config):
+    """Create test config with test database settings for documentation tests."""
+    return Config(
+        survey_id=real_config.survey_id,
+        lp_poll_id=real_config.lp_poll_id,
+        lp_api_token=real_config.lp_api_token,
+        lp_api_base_url=real_config.lp_api_base_url,
+        llm_model=real_config.llm_model,
+        llm_key=real_config.llm_key,
+        llm_base_url=real_config.llm_base_url,
+        doc_output_dir=real_config.doc_output_dir,
+        db_host="localhost",
+        db_port=5433,
+        db_name="test_db",
+        db_user="test_user",
+        db_password="test_password",
+    )
+
+
+def test_generate_doc_from_database(
+    survey_in_database, test_config_for_docs, db_connection
+):
     """Test complete documentation generation from database."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create config with temporary doc directory and test database settings
+        # Update config with survey ID and temporary doc directory
         test_config = Config(
             survey_id=survey_in_database,
-            lp_poll_id=real_config.lp_poll_id,
-            lp_api_token=real_config.lp_api_token,
-            lp_api_base_url=real_config.lp_api_base_url,
-            llm_model=real_config.llm_model,
-            llm_key=real_config.llm_key,
-            llm_base_url=real_config.llm_base_url,
+            lp_poll_id=test_config_for_docs.lp_poll_id,
+            lp_api_token=test_config_for_docs.lp_api_token,
+            lp_api_base_url=test_config_for_docs.lp_api_base_url,
+            llm_model=test_config_for_docs.llm_model,
+            llm_key=test_config_for_docs.llm_key,
+            llm_base_url=test_config_for_docs.llm_base_url,
             doc_output_dir=str(Path(tmpdir) / "docs"),
-            db_host="localhost",
-            db_port=5433,
-            db_name="test_db",
-            db_user="test_user",
-            db_password="test_password",
+            db_host=test_config_for_docs.db_host,
+            db_port=test_config_for_docs.db_port,
+            db_name=test_config_for_docs.db_name,
+            db_user=test_config_for_docs.db_user,
+            db_password=test_config_for_docs.db_password,
         )
 
         # Generate documentation from database
@@ -79,28 +105,28 @@ def test_generate_doc_from_database(survey_in_database, real_config, db_connecti
 
 
 def test_generate_doc_with_custom_mkdocs_config(
-    survey_in_database, real_config, db_connection
+    survey_in_database, test_config_for_docs, db_connection
 ):
     """Test documentation generation with custom MkDocs settings."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create config with custom MkDocs settings and test database
+        # Update config with custom MkDocs settings
         test_config = Config(
             survey_id=survey_in_database,
-            lp_poll_id=real_config.lp_poll_id,
-            lp_api_token=real_config.lp_api_token,
-            lp_api_base_url=real_config.lp_api_base_url,
-            llm_model=real_config.llm_model,
-            llm_key=real_config.llm_key,
-            llm_base_url=real_config.llm_base_url,
+            lp_poll_id=test_config_for_docs.lp_poll_id,
+            lp_api_token=test_config_for_docs.lp_api_token,
+            lp_api_base_url=test_config_for_docs.lp_api_base_url,
+            llm_model=test_config_for_docs.llm_model,
+            llm_key=test_config_for_docs.llm_key,
+            llm_base_url=test_config_for_docs.llm_base_url,
             doc_output_dir=str(Path(tmpdir) / "docs"),
             mkdocs_site_name="Custom Survey Name",
             mkdocs_site_author="Test Author",
             mkdocs_repo_url="https://github.com/test/repo",
-            db_host="localhost",
-            db_port=5433,
-            db_name="test_db",
-            db_user="test_user",
-            db_password="test_password",
+            db_host=test_config_for_docs.db_host,
+            db_port=test_config_for_docs.db_port,
+            db_name=test_config_for_docs.db_name,
+            db_user=test_config_for_docs.db_user,
+            db_password=test_config_for_docs.db_password,
         )
 
         # Generate documentation
@@ -117,24 +143,24 @@ def test_generate_doc_with_custom_mkdocs_config(
             assert "Custom Survey Name" in html_content
 
 
-def test_generate_doc_missing_metadata_fails(real_config, db_connection):
+def test_generate_doc_missing_metadata_fails(test_config_for_docs, db_connection):
     """Test that generate_doc fails gracefully when metadata table doesn't exist."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create config for non-existent survey with test database
+        # Update config for non-existent survey
         test_config = Config(
             survey_id="nonexistent_survey",
-            lp_poll_id=real_config.lp_poll_id,
-            lp_api_token=real_config.lp_api_token,
-            lp_api_base_url=real_config.lp_api_base_url,
-            llm_model=real_config.llm_model,
-            llm_key=real_config.llm_key,
-            llm_base_url=real_config.llm_base_url,
+            lp_poll_id=test_config_for_docs.lp_poll_id,
+            lp_api_token=test_config_for_docs.lp_api_token,
+            lp_api_base_url=test_config_for_docs.lp_api_base_url,
+            llm_model=test_config_for_docs.llm_model,
+            llm_key=test_config_for_docs.llm_key,
+            llm_base_url=test_config_for_docs.llm_base_url,
             doc_output_dir=str(Path(tmpdir) / "docs"),
-            db_host="localhost",
-            db_port=5433,
-            db_name="test_db",
-            db_user="test_user",
-            db_password="test_password",
+            db_host=test_config_for_docs.db_host,
+            db_port=test_config_for_docs.db_port,
+            db_name=test_config_for_docs.db_name,
+            db_user=test_config_for_docs.db_user,
+            db_password=test_config_for_docs.db_password,
         )
 
         # Should raise TableNotFoundError when metadata table doesn't exist

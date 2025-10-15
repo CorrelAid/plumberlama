@@ -13,7 +13,9 @@ import tempfile
 from pathlib import Path
 
 OPENAPI_URL = "https://app.lamapoll.de/assets/api/v2/openapi.json"
-OUTPUT_FILE = Path(__file__).parent.parent / "src" / "plumberlama" / "api_models.py"
+OUTPUT_FILE = (
+    Path(__file__).parent.parent / "src" / "plumberlama" / "generated_api_models.py"
+)
 
 
 def main():
@@ -50,8 +52,6 @@ def main():
         )
         print("Generated models successfully!")
         print(f"File size: {OUTPUT_FILE.stat().st_size} bytes")
-
-        # Temporary files are automatically cleaned up when exiting the context manager
 
 
 if __name__ == "__main__":

@@ -39,6 +39,11 @@ def real_config():
         llm_base_url=os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
         doc_output_dir=os.getenv("DOC_OUTPUT_DIR", "/tmp/docs"),
         survey_id=os.getenv("SURVEY_ID", "test_survey"),
+        db_host=os.getenv("DB_HOST", "localhost"),
+        db_port=int(os.getenv("DB_PORT", "5432")),
+        db_name=os.getenv("DB_NAME", "survey_data"),
+        db_user=os.getenv("DB_USER", "plumberlama"),
+        db_password=os.getenv("DB_PASSWORD", "plumberlama_dev"),
     )
 
 
@@ -700,6 +705,26 @@ def docker_compose_test_db(request):
     request.addfinalizer(cleanup)
 
     yield
+
+
+@pytest.fixture
+def test_db_config(real_config):
+    """Create test config with test database settings for preload and database tests."""
+    return Config(
+        survey_id="test_survey",
+        lp_poll_id=real_config.lp_poll_id,
+        lp_api_token=real_config.lp_api_token,
+        lp_api_base_url=real_config.lp_api_base_url,
+        llm_model=real_config.llm_model,
+        llm_key=real_config.llm_key,
+        llm_base_url=real_config.llm_base_url,
+        doc_output_dir=real_config.doc_output_dir,
+        db_host="localhost",
+        db_port=5433,
+        db_name="test_db",
+        db_user="test_user",
+        db_password="test_password",
+    )
 
 
 @pytest.fixture

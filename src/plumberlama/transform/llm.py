@@ -30,7 +30,7 @@ examples = [
         previous_variable_names=[],
         question_text="Wie bist du zu diesem Ehrenamt gekommen?",
         variable_text="Eine andere Person hat mich mitgenommen, bzw. mir von diesem Ehrenamt erzählt.",
-        variable_suffix="erzählung",
+        variable_suffix="erzaehlung",
     ).with_inputs("previous_variable_names", "question_text", "variable_text"),
     # Example 3: Second variable in multi-variable question (has previous names)
     dspy.Example(
@@ -52,7 +52,7 @@ examples = [
 def make_generator():
     """Create DSPy generator for variable names."""
 
-    variable_suffix_desc = """Generate a descriptive suffix using EXACTLY ONE existing dictionary word (lowercase and letters only, no numbers, umlauts like ä, ö, ü, ß are allowed).
+    variable_suffix_desc = """Generate a descriptive suffix using EXACTLY ONE existing dictionary word (lowercase and letters only, no numbers, umlauts like ä, ö, ü, ß are NOT allowed).
 IMPORTANT: The suffix must be a single real German/English word that exists in a dictionary and accurately describes the variable in the context of the question. Never use numbers.
 Never use underscores. Never use multiple words. Just one meaningful word that captures the essence of the variable_text.
 """

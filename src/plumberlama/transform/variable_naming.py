@@ -4,22 +4,7 @@ import polars as pl
 
 
 def _sanitize_suffix(suffix: str) -> str:
-    """Remove German umlauts and other non-ASCII characters from variable suffix.
-
-    Replaces:
-    - ä → ae
-    - ö → oe
-    - ü → ue
-    - ß → ss
-
-    Then removes any remaining non-ASCII characters.
-
-    Args:
-        suffix: Variable suffix that may contain umlauts
-
-    Returns:
-        ASCII-only suffix
-    """
+    """Remove German umlauts and other non-ASCII characters from variable suffix."""
     replacements = {
         "ä": "ae",
         "ö": "oe",
@@ -33,9 +18,6 @@ def _sanitize_suffix(suffix: str) -> str:
     result = suffix
     for umlaut, replacement in replacements.items():
         result = result.replace(umlaut, replacement)
-
-    # Remove any remaining non-ASCII characters
-    result = result.encode("ascii", "ignore").decode("ascii")
 
     return result
 
@@ -64,21 +46,10 @@ def _generate_llm_name(
 ):
     """Generate variable name using LLM with validation."""
     for attempt in range(max_retries):
-        prompt_suffix = ""
-        if previous_names:
-            avoid_names = [
-                n.replace("AVOID:", "").split("_", 1)[1] if "_" in n else n
-                for n in previous_names
-                if n
-            ]
-            prompt_suffix = f" IMPORTANT: Generate a DIFFERENT suffix than these already used: {', '.join(avoid_names)}."
-
-        # Add instruction to avoid umlauts
-        prompt_suffix += " Use only ASCII characters a-z (no umlauts like ä, ö, ü, ß)."
 
         result = generator(
             previous_variable_names=previous_names,
-            question_text=question_text + prompt_suffix,
+            question_text=question_text,
             variable_text=variable_text,
             lm=lm,
         )

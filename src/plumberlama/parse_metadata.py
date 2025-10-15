@@ -5,16 +5,7 @@ from plumberlama.type_mapping import polars_to_string
 
 
 def parse_question(question: Questions, absolute_position: int, page_number: int):
-    """Parse question structure and generate variable metadata from Pydantic Question object.
-
-    Args:
-        question: Pydantic Questions object
-        absolute_position: Absolute position of question in survey
-        page_number: Page number of question
-
-    Returns:
-        Tuple of (question_dict, variables_list)
-    """
+    """Parse question structure and generate variable metadata from Pydantic Question object."""
     question_id = question.id
     lp_question_type = question.type.value
     number_groups = len(question.groups) if question.groups else 0

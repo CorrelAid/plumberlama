@@ -7,16 +7,7 @@ from plumberlama.type_mapping import polars_to_string
 def extract_question_type(
     question: Questions, absolute_position: int, page_number: int
 ):
-    """Determine question type and generate variable metadata from Pydantic Question object.
-
-    Args:
-        question: Pydantic Questions object
-        absolute_position: Absolute position of question in survey
-        page_number: Page number of question
-
-    Returns:
-        Tuple of (question_dict, variables_list)
-    """
+    """Determine question type and generate variable metadata from Pydantic Question object."""
     question_id = question.id
     lp_question_type = question.type.value
     number_groups = len(question.groups) if question.groups else 0
@@ -30,14 +21,7 @@ def extract_question_type(
     variables = []
 
     def make_var(var_id, var_type, group_id=0, **extras):
-        """Helper to create variable dict with common fields.
-
-        Args:
-            var_id: Variable identifier
-            var_type: Polars DataType (will be converted to string representation)
-            group_id: Group identifier
-            **extras: Additional fields
-        """
+        """Helper to create variable dict with common fields."""
         defaults = {
             "label": None,
             "range_min": None,
@@ -287,7 +271,6 @@ def extract_question_type(
                 f"Unknown Question Type: {lp_question_type} with {number_groups} groups"
             )
 
-    # Build question metadata dict
     question_dict = {
         "text": question.question.get("de", ""),
         "id": question.id,

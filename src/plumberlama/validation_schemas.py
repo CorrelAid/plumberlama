@@ -41,14 +41,7 @@ class ProcessedMetadataSchema(ParsedMetadataSchema):
 
 
 def make_results_schema(variable_df: pl.DataFrame) -> pa.DataFrameSchema:
-    """Create a Pandera schema for validating survey results data.
-
-    Args:
-        variable_df: DataFrame containing variable metadata
-
-    Returns:
-        DataFrameSchema for validating results with appropriate types and checks
-    """
+    """Create a Pandera schema for validating survey results data."""
     columns = {}
 
     for var in variable_df.to_dicts():

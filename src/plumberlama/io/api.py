@@ -1,5 +1,4 @@
 def make_headers(api_token: str) -> dict[str, str]:
-    """Create HTTP headers for LamaPoll API requests."""
     return {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
 
 

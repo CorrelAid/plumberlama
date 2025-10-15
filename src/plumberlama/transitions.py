@@ -140,14 +140,8 @@ def process_poll_metadata(
 def preload_check(
     config: Config, new_metadata: ProcessedMetadataState
 ) -> PreloadCheckState:
-    """Check if tables exist and validate metadata consistency.
+    """Check if tables exist and validate metadata consistency."""
 
-    This is a critical validation step that ensures data integrity:
-    - If load_counter=0: No tables exist, will CREATE new tables
-    - If load_counter>0: Tables exist, will APPEND to existing data
-
-    IMPORTANT: Pipeline will STOP if survey structure has changed since last load.
-    """
     logger.info("Validating metadata...")
     try:
         existing_df = query_database(
@@ -312,17 +306,7 @@ def load_data(
 
 
 def generate_doc(config: Config) -> DocumentedState:
-    """Generate documentation from survey data stored in database.
-
-    Args:
-        config: Configuration object
-
-    Returns:
-        DocumentedState: State after generating documentation
-
-    Raises:
-        TableNotFoundError: If required metadata table doesn't exist in database
-    """
+    """Generate documentation from survey data stored in database."""
     logger.info("Generating documentation from database...")
 
     # Check if metadata table exists using SQLAlchemy inspect

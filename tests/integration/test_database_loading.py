@@ -13,7 +13,7 @@ def test_database_connection(db_connection):
 
 
 def test_save_to_database_basic(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test basic save_to_database functionality with sample data."""
     table_prefix = "test_basic_save"
@@ -24,6 +24,7 @@ def test_save_to_database_basic(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Verify tables were created
@@ -34,7 +35,7 @@ def test_save_to_database_basic(
 
 
 def test_load_results_from_database(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test loading survey results from database."""
     table_prefix = "test_load_results"
@@ -45,6 +46,7 @@ def test_load_results_from_database(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Load results back
@@ -61,7 +63,7 @@ def test_load_results_from_database(
 
 
 def test_load_metadata_from_database(
-    sample_processed_metadata, sample_processed_results, db_connection
+    sample_processed_metadata, sample_processed_results, test_db_config, db_connection
 ):
     """Test loading metadata from database."""
     table_prefix = "test_load_metadata"
@@ -72,6 +74,7 @@ def test_load_metadata_from_database(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Load metadata back
@@ -88,7 +91,7 @@ def test_load_metadata_from_database(
 
 
 def test_database_create_behavior(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test that creating new tables with append=False works correctly."""
     table_prefix = "test_create"
@@ -99,6 +102,7 @@ def test_database_create_behavior(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Verify data saved
@@ -110,7 +114,7 @@ def test_database_create_behavior(
 
 
 def test_database_append_behavior(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test that if_exists='append' correctly adds to existing tables."""
     table_prefix = "test_append"
@@ -121,6 +125,7 @@ def test_database_append_behavior(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     original_count = len(sample_processed_results.results_df)
@@ -131,6 +136,7 @@ def test_database_append_behavior(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=True,
+        config=test_db_config,
     )
 
     # Verify table has double the rows
@@ -139,7 +145,7 @@ def test_database_append_behavior(
 
 
 def test_query_with_filter(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test querying database with WHERE clause."""
     table_prefix = "test_query_filter"
@@ -150,6 +156,7 @@ def test_query_with_filter(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Query with filter (PostgreSQL converts column names to lowercase by default)
@@ -163,7 +170,7 @@ def test_query_with_filter(
 
 
 def test_data_types_preserved(
-    sample_processed_results, sample_processed_metadata, db_connection
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
 ):
     """Test that data types are preserved when saving and loading from database."""
     table_prefix = "test_data_types"
@@ -174,6 +181,7 @@ def test_data_types_preserved(
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
+        config=test_db_config,
     )
 
     # Load back

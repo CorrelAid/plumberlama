@@ -1,5 +1,3 @@
-"""CLI entrypoint for plumberlama package."""
-
 import os
 import sys
 
@@ -25,10 +23,7 @@ logger = get_logger(__name__)
 
 
 def run_etl_pipeline() -> LoadedState:
-    """Run complete ETL pipeline: Fetch → Parse → Process → Validate → Load.
-
-    Loads configuration from environment variables.
-    """
+    """Run complete ETL pipeline: Fetch → Parse → Process → Validate → Load."""
     config = Config(
         survey_id=os.getenv("SURVEY_ID", "test_survey"),
         lp_poll_id=int(os.getenv("LP_POLL_ID")),
@@ -57,8 +52,6 @@ def run_etl_pipeline() -> LoadedState:
         parse_poll_metadata(fetch_poll_metadata(config)), config
     )
 
-    # Critical validation: ensures survey structure hasn't changed
-    # Pipeline will stop here if validation fails
     try:
         validated_metadata = preload_check(config, current_metadata)
     except MetadataMismatchError:
@@ -80,10 +73,8 @@ def run_etl_pipeline() -> LoadedState:
 
 
 def generate_docs() -> LoadedState:
-    """Generate documentation from survey data.
+    """Generate documentation from survey data."""
 
-    Loads configuration from environment variables.
-    """
     config = Config(
         survey_id=os.getenv("SURVEY_ID", "test_survey"),
         lp_poll_id=int(os.getenv("LP_POLL_ID")),

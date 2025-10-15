@@ -2,18 +2,15 @@
 
 It's lama with one l! Generate documentation for repeated cross-sectional surveys (anonymous participants) created with LamaPoll and process results to simplify self-service data analysis and visualization.
 
-## Quick Start
+## Deployment
 
 ### Option 1: Install as Package
 
-Install plumberlama as a Python package (requires Python 3.12+):
+Install plumberlama as a Python package:
 
 ```bash
 # From GitHub
 uv pip install "git+https://github.com/username/plumberlama.git"
-
-# Or install a specific version/branch/tag
-uv pip install "git+https://github.com/username/plumberlama.git@v0.1.0"
 
 # Create .env file with configuration (see Configuration section below)
 
@@ -26,7 +23,7 @@ plumberlama docs
 
 ### Option 2: Use containerized pipeline
 
-See the example docker compose for how this could work:
+See the example docker compose and Dockerfile for how this could work:
 
 ```bash
 # 1. Create .env file from template
@@ -101,31 +98,6 @@ uv run plumberlama etl
 
 # Run tests
 uv run pytest
-```
-
-### Developing with Docker
-
-The Dockerfile installs plumberlama from your local source code by default, so changes are reflected immediately when you rebuild.
-
-**Development workflow:**
-
-1. Make your code changes locally
-2. Test with `uv run plumberlama etl` and `uv run pytest`
-3. Rebuild and restart Docker:
-   ```bash
-   docker compose -f docker-compose.example.yml build pipeline
-   docker compose -f docker-compose.example.yml up -d
-   ```
-
-**For deployment without cloning the repo:**
-
-To install from GitHub instead (useful for deployment environments), modify the Dockerfile as shown in the comments (around line 23):
-
-```dockerfile
-# Replace COPY/install lines with:
-ARG GIT_REF=main
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system "plumberlama @ git+https://github.com/CorrelAid/plumberlama.git@${GIT_REF}"
 ```
 
 ## Project Structure

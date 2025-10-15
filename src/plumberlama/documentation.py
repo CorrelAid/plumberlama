@@ -3,7 +3,11 @@ from pathlib import Path
 
 import polars as pl
 from mkdocs.commands.build import build
+from mkdocs.config.defaults import (
+    MkDocsConfig,
+)  # (note: this is not an official public API)
 
+from plumberlama.config import build_mkdoc_config, css_content
 from plumberlama.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -12,8 +16,8 @@ logger = get_logger(__name__)
 def create_documentation_dataframe(
     metadata_df: pl.DataFrame,
 ) -> pl.DataFrame:
-    """Create documentation DataFrame from metadata (already contains question text)."""
-    # schema_variable_type is now a string, so we can use it directly
+    """Create documentation DataFrame from metadata"""
+
     doc_df = metadata_df.with_columns(
         [pl.col("schema_variable_type").alias("type_display")]
     )
@@ -169,20 +173,8 @@ Use the search function (top right) to quickly find specific questions or variab
 
 
 def build_mkdocs_site(output_path: str, mkdocs_config: dict = None) -> Path:
-    """Build MkDocs static site from markdown files using MkDocs Python API.
+    """Build MkDocs static site from markdown files using MkDocs Python API."""
 
-    Args:
-        output_path: Directory path containing markdown documentation files
-        mkdocs_config: Optional dict with site_name, site_author, repo_url, logo_url
-
-    Returns:
-        Path to the built site directory
-
-    Raises:
-        ImportError: If mkdocs package is not installed
-        ValueError: If mkdocs_config is not provided
-        Exception: If MkDocs build fails
-    """
     docs_path = Path(output_path).resolve()
     project_root = docs_path.parent
     site_dir = project_root / "site"
@@ -190,159 +182,38 @@ def build_mkdocs_site(output_path: str, mkdocs_config: dict = None) -> Path:
     if not mkdocs_config:
         raise ValueError("mkdocs_config must be provided to build documentation")
 
-    # Write CSS file
-    css_content = """/*-- Main Color --*/
-
-:root {
-  --md-primary-fg-color: #991766;
-  --md-accent-fg-color: #991766;
-}
-
-/*-- Logo Size --*/
-
-.md-header__button.md-logo img,
-.md-header__button.md-logo svg {
-  height: 3rem;
-  width: auto;
-}
-
-/*-- Table Borders --*/
-
-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-table th,
-table td {
-  border: 1px solid var(--md-default-fg-color--lightest);
-  padding: 0.6rem 1rem;
-}
-
-table thead th {
-  border-bottom: 2px solid var(--md-default-fg-color--light);
-  background-color: var(--md-code-bg-color);
-}
-
-/* Dark mode adjustments */
-[data-md-color-scheme="slate"] table th,
-[data-md-color-scheme="slate"] table td {
-  border-color: var(--md-default-fg-color--lighter);
-}
-
-[data-md-color-scheme="slate"] table thead th {
-  border-bottom-color: var(--md-default-fg-color);
-}
-"""
-
     # Create stylesheets directory and write CSS
     stylesheets_dir = docs_path / "stylesheets"
     stylesheets_dir.mkdir(exist_ok=True)
     (stylesheets_dir / "extra.css").write_text(css_content, encoding="utf-8")
 
+    # Build full config dict with defaults
+    full_config = build_mkdoc_config(
+        docs_path,
+        site_dir,
+        mkdocs_config["site_name"],
+        mkdocs_config["site_author"],
+        mkdocs_config["logo_url"],
+    )
+
+    # Create MkDocsConfig object and load from dict
+    config = MkDocsConfig(config_file_path=None)
+    config.load_dict(full_config)
+
+    # Validate the config (this initializes plugins and other components)
+    errors, warnings = config.validate()
+    if errors:
+        raise ValueError(f"MkDocs config validation errors: {errors}")
+
+    # Run plugin startup event
+    config["plugins"].run_event("startup", command="build", dirty=False)
+
     try:
-        # Import MkDocs modules (note: this is not an official public API)
-        from mkdocs.config.defaults import MkDocsConfig
+        # Build the site
+        build(config)
+    finally:
+        # Always run plugin shutdown event
+        config["plugins"].run_event("shutdown")
 
-        # Build full config dict with defaults
-        full_config = {
-            "site_name": mkdocs_config.get("site_name", "Survey Documentation"),
-            "site_description": f"Documentation for {mkdocs_config.get('site_name', 'Survey Documentation')}",
-            "site_author": mkdocs_config.get("site_author", "Survey Team"),
-            "theme": {
-                "name": "material",
-                "logo": mkdocs_config.get("logo_url"),
-                "features": [
-                    "navigation.instant",
-                    "navigation.tracking",
-                    "navigation.tabs",
-                    "navigation.sections",
-                    "navigation.expand",
-                    "navigation.top",
-                    "search.suggest",
-                    "search.highlight",
-                    "search.share",
-                    "toc.follow",
-                    "content.code.copy",
-                ],
-                "palette": [
-                    {
-                        "media": "(prefers-color-scheme: light)",
-                        "scheme": "default",
-                        "primary": "custom",
-                        "accent": "custom",
-                        "toggle": {
-                            "icon": "material/brightness-7",
-                            "name": "Switch to dark mode",
-                        },
-                    },
-                    {
-                        "media": "(prefers-color-scheme: dark)",
-                        "scheme": "slate",
-                        "primary": "custom",
-                        "accent": "custom",
-                        "toggle": {
-                            "icon": "material/brightness-4",
-                            "name": "Switch to light mode",
-                        },
-                    },
-                ],
-            },
-            "nav": [
-                {"Home": "index.md"},
-                {"Survey Documentation": "survey_documentation.md"},
-            ],
-            "markdown_extensions": [
-                "tables",
-                {"toc": {"permalink": True, "toc_depth": 3}},
-                "admonition",
-                "pymdownx.details",
-                "pymdownx.superfences",
-                {"pymdownx.tabbed": {"alternate_style": True}},
-                {"pymdownx.highlight": {"anchor_linenums": True}},
-                "pymdownx.inlinehilite",
-                "pymdownx.snippets",
-                "attr_list",
-                "md_in_html",
-            ],
-            "plugins": [{"search": {"lang": "en", "separator": r"[\s\-\.]"}}],
-            "docs_dir": str(docs_path),
-            "site_dir": str(site_dir),
-            "extra_css": ["stylesheets/extra.css"],
-        }
-
-        # Add repo_url if provided
-        if mkdocs_config.get("repo_url"):
-            full_config["repo_url"] = mkdocs_config["repo_url"]
-            full_config["edit_uri"] = "edit/main/docs/"
-
-        # Create MkDocsConfig object and load from dict
-        config = MkDocsConfig(config_file_path=None)
-        config.load_dict(full_config)
-
-        # Validate the config (this initializes plugins and other components)
-        errors, warnings = config.validate()
-        if errors:
-            raise ValueError(f"MkDocs config validation errors: {errors}")
-
-        # Run plugin startup event
-        config["plugins"].run_event("startup", command="build", dirty=False)
-
-        try:
-            # Build the site
-            build(config)
-        finally:
-            # Always run plugin shutdown event
-            config["plugins"].run_event("shutdown")
-
-        logger.info(f"✓ MkDocs site built successfully at {site_dir}")
-        return site_dir
-
-    except ImportError:
-        logger.error(
-            "✗ MkDocs not found. Install with: pip install mkdocs mkdocs-material"
-        )
-        raise
-    except Exception as e:
-        logger.error(f"✗ MkDocs build failed: {e}")
-        raise
+    logger.info(f"✓ MkDocs site built successfully at {site_dir}")
+    return site_dir

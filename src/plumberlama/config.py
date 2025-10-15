@@ -25,6 +25,7 @@ class Config:
         assert lp_poll_id > 0, "poll_id must be positive"
         assert lp_api_token, "lama_api_token must not be empty"
         assert lp_api_base_url, "base_url must not be empty"
+        assert db_host, "db_host must not be empty"
 
         self.survey_id = survey_id
 
@@ -66,3 +67,116 @@ class Config:
             f"postgresql+psycopg2://{self.db_user}:{self.db_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"
         )
+
+
+def build_mkdoc_config(docs_path, site_dir, site_name, site_author, logo_url):
+    return {
+        "site_name": site_name,
+        "site_description": f"Documentation for {site_name}",
+        "site_author": site_author,
+        "theme": {
+            "name": "material",
+            "logo": logo_url,
+            "features": [
+                "navigation.instant",
+                "navigation.tracking",
+                "navigation.tabs",
+                "navigation.sections",
+                "navigation.expand",
+                "navigation.top",
+                "search.suggest",
+                "search.highlight",
+                "search.share",
+                "toc.follow",
+                "content.code.copy",
+            ],
+            "palette": [
+                {
+                    "media": "(prefers-color-scheme: light)",
+                    "scheme": "default",
+                    "primary": "custom",
+                    "accent": "custom",
+                    "toggle": {
+                        "icon": "material/brightness-7",
+                        "name": "Switch to dark mode",
+                    },
+                },
+                {
+                    "media": "(prefers-color-scheme: dark)",
+                    "scheme": "slate",
+                    "primary": "custom",
+                    "accent": "custom",
+                    "toggle": {
+                        "icon": "material/brightness-4",
+                        "name": "Switch to light mode",
+                    },
+                },
+            ],
+        },
+        "nav": [
+            {"Home": "index.md"},
+            {"Survey Documentation": "survey_documentation.md"},
+        ],
+        "markdown_extensions": [
+            "tables",
+            {"toc": {"permalink": True, "toc_depth": 3}},
+            "admonition",
+            "pymdownx.details",
+            "pymdownx.superfences",
+            {"pymdownx.tabbed": {"alternate_style": True}},
+            {"pymdownx.highlight": {"anchor_linenums": True}},
+            "pymdownx.inlinehilite",
+            "pymdownx.snippets",
+            "attr_list",
+            "md_in_html",
+        ],
+        "plugins": [{"search": {"lang": "en", "separator": r"[\s\-\.]"}}],
+        "docs_dir": str(docs_path),
+        "site_dir": str(site_dir),
+        "extra_css": ["stylesheets/extra.css"],
+    }
+
+
+css_content = """/*-- Main Color --*/
+
+:root {
+  --md-primary-fg-color: #991766;
+  --md-accent-fg-color: #991766;
+}
+
+/*-- Logo Size --*/
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 3rem;
+  width: auto;
+}
+
+/*-- Table Borders --*/
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table th,
+table td {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  padding: 0.6rem 1rem;
+}
+
+table thead th {
+  border-bottom: 2px solid var(--md-default-fg-color--light);
+  background-color: var(--md-code-bg-color);
+}
+
+/* Dark mode adjustments */
+[data-md-color-scheme="slate"] table th,
+[data-md-color-scheme="slate"] table td {
+  border-color: var(--md-default-fg-color--lighter);
+}
+
+[data-md-color-scheme="slate"] table thead th {
+  border-bottom-color: var(--md-default-fg-color);
+}
+"""
