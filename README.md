@@ -4,28 +4,7 @@ It's lama with one l! Generate documentation for repeated cross-sectional survey
 
 ## Quick Start
 
-### Option 1: Docker (Recommended)
-
-The easiest way to run the pipeline with PostgreSQL:
-
-```bash
-# 1. Create .env file from template
-cp .env.example .env
-# Edit .env with your LamaPoll credentials and configuration
-
-# 2. Start all services (PostgreSQL + Pipeline + Web server)
-docker-compose up
-```
-
-This will:
-- Start a PostgreSQL database
-- Run the ETL pipeline to fetch and process survey data
-- Generate documentation as a static MkDocs site
-- Serve the documentation at http://localhost:8080
-
-The pipeline runs ETL first, then generates documentation. Once complete, you can view the documentation in your browser at http://localhost:8080.
-
-### Option 2: Install as Package
+### Option 1: Install as Package
 
 Install plumberlama as a Python package (requires Python 3.12+):
 
@@ -44,6 +23,27 @@ plumberlama etl
 # Or generate documentation only
 plumberlama docs
 ```
+
+### Option 2: Use containerized pipeline
+
+See the example docker compose for how this could work:
+
+```bash
+# 1. Create .env file from template
+cp .env.example .env
+# Edit .env with your LamaPoll credentials and configuration
+
+# 2. Start all services (PostgreSQL + Pipeline + Web server)
+docker-compose up
+```
+
+This will:
+- Start a PostgreSQL database
+- Run the ETL pipeline to fetch and process survey data
+- Generate documentation as a static MkDocs site
+- Serve the documentation at http://localhost:8080
+
+The pipeline runs ETL first, then generates documentation. Once complete, you can view the documentation in your browser at http://localhost:8080.
 
 ### Configuration
 
@@ -102,6 +102,34 @@ uv run plumberlama etl
 # Run tests
 uv run pytest
 ```
+
+### Developing with Docker
+
+**Important:** The Dockerfile installs plumberlama from GitHub (line 27), not from local source. This means local code changes won't be reflected in the Docker image until pushed to GitHub.
+
+**Development workflow:**
+
+1. Make your code changes locally
+2. Test changes
+3. Commit and push to GitHub
+4. Rebuild the Docker image:
+   ```bash
+   docker compose -f docker-compose.example.yml build --no-cache pipeline
+   docker compose -f docker-compose.example.yml up -d
+   ```
+
+**Alternative: Local development mode**
+
+To test Docker changes with local code before pushing, modify the Dockerfile:
+
+```dockerfile
+# Replace lines 23-27 with:
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system .
+```
+
+Remember to revert this before committing, as the production Dockerfile should install from GitHub.
 
 ## Project Structure
 
