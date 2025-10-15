@@ -4,7 +4,7 @@ import sys
 from click import command, echo, group
 
 from plumberlama.config import Config
-from plumberlama.logging_config import get_logger
+from plumberlama.logging_config import get_logger, setup_logging
 from plumberlama.states import LoadedState
 from plumberlama.transitions import (
     MetadataMismatchError,
@@ -106,6 +106,7 @@ def generate_docs() -> LoadedState:
 @command()
 def etl():
     """Run the ETL pipeline to fetch, process, and load survey data."""
+    setup_logging("INFO")
     try:
         run_etl_pipeline()
         sys.exit(0)
@@ -117,6 +118,7 @@ def etl():
 @command()
 def docs():
     """Generate documentation for the survey."""
+    setup_logging("INFO")
     try:
         generate_docs()
         sys.exit(0)
