@@ -7,19 +7,19 @@ class Config:
         lp_poll_id: int,
         lp_api_token: str,
         lp_api_base_url: str,
-        llm_model: str = None,
-        llm_key: str = None,
-        llm_base_url: str = None,
-        doc_output_dir: str = None,
-        mkdocs_site_name: str = None,
-        mkdocs_site_author: str = None,
-        mkdocs_repo_url: str = None,
-        mkdocs_logo_url: str = None,
-        db_host: str = None,
-        db_port: int = None,
-        db_name: str = None,
-        db_user: str = None,
-        db_password: str = None,
+        llm_model: str,
+        llm_key: str,
+        llm_base_url: str,
+        doc_output_dir: str,
+        mkdocs_site_name: str,
+        mkdocs_site_author: str,
+        mkdocs_repo_url: str,
+        mkdocs_logo_url: str,
+        db_host: str,
+        db_port: int,
+        db_name: str,
+        db_user: str,
+        db_password: str,
     ):
         # Validate required inputs
         assert lp_poll_id > 0, "poll_id must be positive"
@@ -51,11 +51,11 @@ class Config:
         )
 
         # Database configuration
-        self.db_host = db_host or "localhost"
-        self.db_port = db_port or 5432
-        self.db_name = db_name or "survey_data"
-        self.db_user = db_user or "plumberlama"
-        self.db_password = db_password or "plumberlama_dev"
+        self.db_host = db_host
+        self.db_port = db_port
+        self.db_name = db_name
+        self.db_user = db_user
+        self.db_password = db_password
 
     def get_db_connection_uri(self) -> str:
         """Get PostgreSQL connection URI from config.

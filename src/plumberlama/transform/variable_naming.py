@@ -116,9 +116,6 @@ def _process_multi_variable_question(
                 if new_var_id not in all_names and new_var_id not in question_var_names:
                     break
 
-                if attempt < 2:
-                    question_var_names.append(f"AVOID:{new_var_id}")
-
             assert (
                 new_var_id not in all_names and new_var_id not in question_var_names
             ), f"Failed to generate unique name for '{label}'. Got '{new_var_id}' after 3 attempts."

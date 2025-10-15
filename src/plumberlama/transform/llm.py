@@ -52,15 +52,15 @@ examples = [
 def make_generator():
     """Create DSPy generator for variable names."""
 
-    variable_suffix_desc = """Generate a descriptive suffix using EXACTLY ONE existing dictionary word (lowercase and letters only, no numbers, umlauts like ä, ö, ü, ß are NOT allowed).
-IMPORTANT: The suffix must be a single real German/English word that exists in a dictionary and accurately describes the variable in the context of the question. Never use numbers.
-Never use underscores. Never use multiple words. Just one meaningful word that captures the essence of the variable_text.
-"""
+    variable_suffix_desc = """Generate a descriptive unique suffix using EXACTLY ONE existing dictionary word (lowercase and letters only, no underscores, no numbers, umlauts like ä, ö, ü, ß are NOT allowed).
+IMPORTANT: The suffix must be a single real German/English word that exists in a dictionary and accurately describes the variable in the context of the question."""
 
     class VariableGenerator(dspy.Signature):
         """Given a question text and the text associated with a variable, generates a descriptive variable name suffix. Adapt to language of input text."""
 
-        previous_variable_names: Union[list, None] = dspy.InputField()
+        previous_variable_names: Union[list, None] = dspy.InputField(
+            desc="Variables with suffix that are already taken."
+        )
         question_text: str = dspy.InputField()
         variable_text: str = dspy.InputField()
         variable_suffix: str = dspy.OutputField(desc=variable_suffix_desc)

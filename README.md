@@ -6,19 +6,27 @@ It's lama with one l! Generate documentation for repeated cross-sectional survey
 
 ### Option 1: Install as Package
 
-Install plumberlama as a Python package:
+Install plumberlama as a Python package, for example in a uv project:
 
 ```bash
 # From GitHub
-uv pip install "git+https://github.com/username/plumberlama.git"
+uv pip install "git+https://github.com/correlaid/plumberlama.git"
 
-# Create .env file with configuration (see Configuration section below)
+# Create .env file with configuration (see Configuration section below), then set environment with
+set -a && source .env && set +a
 
-# Run the pipeline
-plumberlama etl
+# Run the etl pipeline
+uv run plumberlama etl
 
-# Or generate documentation only
-plumberlama docs
+# Generate documentation (requires m etadata to be loaded in database)
+uv run plumberlama docs
+```
+
+You can then serve the generated files, for example with the following command (requires busboy utilities to be installed on your OS):
+
+```
+busybox httpd -f -vv -p 1102 -h <output you specified in config>
+#see localhost:1102
 ```
 
 ### Option 2: Use containerized pipeline
