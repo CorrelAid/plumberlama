@@ -13,15 +13,17 @@ The easiest way to run the pipeline with PostgreSQL:
 cp .env.example .env
 # Edit .env with your LamaPoll credentials and configuration
 
-# 2. Start PostgreSQL and run the pipeline
+# 2. Start all services (PostgreSQL + Pipeline + Web server)
 docker-compose up
 ```
 
 This will:
 - Start a PostgreSQL database
 - Run the ETL pipeline to fetch and process survey data
-- Generate documentation in `./output/docs`
-- Generate MkDocs site in `./output/site`
+- Generate documentation as a static MkDocs site
+- Serve the documentation at http://localhost:8080
+
+The pipeline runs ETL first, then generates documentation. Once complete, you can view the documentation in your browser at http://localhost:8080.
 
 ### Option 2: Install as Package
 

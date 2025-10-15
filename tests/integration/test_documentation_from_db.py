@@ -12,7 +12,7 @@ import pytest
 
 from plumberlama.config import Config
 from plumberlama.io.database import save_to_database
-from plumberlama.transitions import generate_doc
+from plumberlama.transitions import TableNotFoundError, generate_doc
 
 
 @pytest.fixture
@@ -122,6 +122,9 @@ def test_generate_doc_missing_metadata_fails(real_config, db_connection):
             doc_output_dir=str(Path(tmpdir) / "docs"),
         )
 
-        # Should raise exception when metadata table doesn't exist
-        with pytest.raises(Exception):
+        # Should raise TableNotFoundError when metadata table doesn't exist
+        with pytest.raises(
+            TableNotFoundError,
+            match="Table 'nonexistent_survey_metadata' does not exist",
+        ):
             generate_doc(test_config)

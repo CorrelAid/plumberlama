@@ -43,6 +43,12 @@ class MetadataMismatchError(Exception):
     pass
 
 
+class TableNotFoundError(Exception):
+    """Raised when required database table doesn't exist."""
+
+    pass
+
+
 def fetch_poll_metadata(config: Config) -> FetchedMetadataState:
     """Fetch poll metadata from API and validate with Pydantic models."""
     logger.info("Fetching metadata from API...")
@@ -313,10 +319,58 @@ def generate_doc(config: Config) -> DocumentedState:
 
     Returns:
         DocumentedState: State after generating documentation
+
+    Raises:
+        TableNotFoundError: If required metadata table doesn't exist in database
     """
     logger.info("Generating documentation from database...")
-    # Retrieve metadata from database
-    metadata_df = query_database(f"SELECT * FROM {config.survey_id}_metadata", config)
+
+    # Check if metadata table exists using SQLAlchemy inspect
+    table_name = f"{config.survey_id}_metadata"
+    from sqlalchemy import create_engine
+    from sqlalchemy import inspect as sa_inspect
+
+    connection_uri = f"postgresql://{config.db_user}:{config.db_password}@{config.db_host}:{config.db_port}/{config.db_name}"
+    engine = create_engine(connection_uri)
+    inspector = sa_inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    if table_name not in existing_tables:
+        logger.error("=" * 60)
+        logger.error("❌ DOCUMENTATION GENERATION FAILED")
+        logger.error("=" * 60)
+        logger.error(f"Required table '{table_name}' not found in database")
+        logger.error("")
+        logger.error("The documentation requires metadata to be loaded first.")
+        logger.error("Please run the ETL pipeline before generating documentation:")
+        logger.error("")
+        logger.error("  plumberlama etl")
+        logger.error("")
+        logger.error("This will create the required tables:")
+        logger.error(f"  - {config.survey_id}_metadata")
+        logger.error(f"  - {config.survey_id}_results")
+        logger.error("=" * 60)
+        raise TableNotFoundError(
+            f"Table '{table_name}' does not exist. "
+            f"Run 'plumberlama etl' first to load survey data."
+        )
+
+    # Retrieve full metadata from database
+    metadata_df = query_database(f"SELECT * FROM {table_name}", config)
+
+    # Check if table is empty
+    if len(metadata_df) == 0:
+        logger.error("=" * 60)
+        logger.error("❌ DOCUMENTATION GENERATION FAILED")
+        logger.error("=" * 60)
+        logger.error(f"Table '{table_name}' exists but is empty")
+        logger.error("")
+        logger.error("Run 'plumberlama etl' to load survey data first.")
+        logger.error("=" * 60)
+        raise TableNotFoundError(
+            f"Table '{table_name}' exists but is empty. "
+            f"Run 'plumberlama etl' first to load survey data."
+        )
 
     # Step 1: Prepare documentation DataFrame (metadata already contains everything)
     doc_df = create_documentation_dataframe(metadata_df)

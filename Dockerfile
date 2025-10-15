@@ -26,11 +26,21 @@ ARG GIT_REF=main
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system "plumberlama @ git+https://github.com/CorrelAid/plumberlama.git@${GIT_REF}"
 
+# Create run script that executes both commands in sequence
+RUN echo '#!/bin/sh\n\
+set -e\n\
+echo "Running ETL pipeline..."\n\
+plumberlama etl\n\
+echo "Generating documentation..."\n\
+plumberlama docs\n\
+echo "Pipeline completed successfully!"' > /usr/local/bin/run-pipeline.sh \
+    && chmod +x /usr/local/bin/run-pipeline.sh
+
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
 # Use the non-root user to run our application
 USER nonroot
 
-# Default command - can be overridden in docker-compose
-CMD ["plumberlama", "--help"]
+# Run both ETL and docs generation in sequence
+CMD ["run-pipeline.sh"]

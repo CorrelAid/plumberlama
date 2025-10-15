@@ -3,13 +3,14 @@
 import os
 import sys
 
-from click import command, echo
+from click import command, echo, group
 
 from plumberlama.config import Config
 from plumberlama.logging_config import get_logger
 from plumberlama.states import LoadedState
 from plumberlama.transitions import (
     MetadataMismatchError,
+    TableNotFoundError,
     fetch_poll_metadata,
     fetch_poll_results,
     generate_doc,
@@ -100,7 +101,11 @@ def generate_docs() -> LoadedState:
         db_password=os.getenv("DB_PASSWORD"),
     )
 
-    generate_doc(config)
+    try:
+        generate_doc(config)
+    except TableNotFoundError:
+        logger.error("Documentation generation aborted due to missing tables")
+        raise
 
     logger.info("=" * 60)
     logger.info("Documentation generated successfully!")
@@ -127,3 +132,13 @@ def docs():
     except Exception as e:
         echo(f"Documentation generation failed: {e}", err=True)
         sys.exit(1)
+
+
+@group()
+def main():
+    """plumberlama: Pipeline to process and document LamaPoll surveys."""
+    pass
+
+
+main.add_command(etl)
+main.add_command(docs)

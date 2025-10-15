@@ -18,11 +18,10 @@ services:
     networks:
       - plumberlama
 
-  etl:
+  pipeline:
     build: .
     image: plumberlama:latest
-    container_name: plumberlama-etl
-    command: ["plumberlama", "etl"]
+    container_name: plumberlama-pipeline
     env_file:
       - .env
     environment:
@@ -32,38 +31,37 @@ services:
       DB_NAME: survey_data
       DB_USER: plumberlama
       DB_PASSWORD: plumberlama_dev
+      # Output directory - site will be built in /app/site
+      DOC_OUTPUT_DIR: /app/docs
+    volumes:
+      # Mount site output directory for web server
+      - site_output:/app/site
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - plumberlama
 
-  docs:
-    build: .
-    image: plumberlama:latest
-    container_name: plumberlama-docs
-    command: ["plumberlama", "docs"]
-    env_file:
-      - .env
-    environment:
-      # Database connection (override if needed)
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: survey_data
-      DB_USER: plumberlama
-      DB_PASSWORD: plumberlama_dev
+  web:
+    image: nginx:alpine
+    container_name: plumberlama-web
+    ports:
+      - "8080:80"
     volumes:
-      # Mount output directory for generated docs
-      - ./output/docs:/tmp/docs
-      - ./output/site:/app/site
+      - site_output:/usr/share/nginx/html:ro
+    environment:
+      # Nginx will use default config which serves from /usr/share/nginx/html
+      NGINX_HOST: localhost
+      NGINX_PORT: 80
     depends_on:
-      postgres:
-        condition: service_healthy
+      - pipeline
     networks:
       - plumberlama
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  site_output:
 
 networks:
   plumberlama:
