@@ -32,7 +32,7 @@ def run_etl_pipeline() -> LoadedState:
         llm_model=os.getenv("LLM_MODEL"),
         llm_key=os.getenv("OR_KEY"),
         llm_base_url=os.getenv("LLM_BASE_URL"),
-        doc_output_dir=os.getenv("DOC_OUTPUT_DIR", "/tmp/docs"),
+        site_output_dir=os.getenv("SITE_OUTPUT_DIR"),
         mkdocs_site_name=os.getenv("MKDOCS_SITE_NAME"),
         mkdocs_site_author=os.getenv("MKDOCS_SITE_AUTHOR"),
         mkdocs_repo_url=os.getenv("MKDOCS_REPO_URL"),
@@ -77,10 +77,13 @@ def generate_docs() -> LoadedState:
 
     config = Config(
         survey_id=os.getenv("SURVEY_ID", "test_survey"),
-        lp_poll_id=int(os.getenv("LP_POLL_ID")),
-        lp_api_token=os.getenv("LP_API_TOKEN"),
-        lp_api_base_url=os.getenv("LP_API_BASE_URL"),
-        doc_output_dir=os.getenv("DOC_OUTPUT_DIR", "/tmp/docs"),
+        lp_poll_id=int(os.getenv("LP_POLL_ID", "0")),  # Not used for docs generation
+        lp_api_token=os.getenv("LP_API_TOKEN", "not-needed-for-docs"),
+        lp_api_base_url=os.getenv("LP_API_BASE_URL", "not-needed-for-docs"),
+        llm_model=os.getenv("LLM_MODEL", "not-needed-for-docs"),
+        llm_key=os.getenv("OR_KEY", "not-needed-for-docs"),
+        llm_base_url=os.getenv("LLM_BASE_URL", "not-needed-for-docs"),
+        site_output_dir=os.getenv("SITE_OUTPUT_DIR"),
         mkdocs_site_name=os.getenv("MKDOCS_SITE_NAME"),
         mkdocs_site_author=os.getenv("MKDOCS_SITE_AUTHOR"),
         mkdocs_repo_url=os.getenv("MKDOCS_REPO_URL"),

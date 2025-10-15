@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import polars as pl
+import requests
 from mkdocs.commands.build import build
 from mkdocs.config.defaults import (
     MkDocsConfig,
@@ -172,20 +173,33 @@ Use the search function (top right) to quickly find specific questions or variab
         f.write(index_content)
 
 
-def build_mkdocs_site(output_path: str, mkdocs_config: dict = None) -> Path:
+def build_mkdocs_site(
+    output_path: str, mkdocs_config: dict, site_output_dir: str
+) -> Path:
     """Build MkDocs static site from markdown files using MkDocs Python API."""
 
     docs_path = Path(output_path).resolve()
-    project_root = docs_path.parent
-    site_dir = project_root / "site"
-
-    if not mkdocs_config:
-        raise ValueError("mkdocs_config must be provided to build documentation")
+    site_dir = Path(site_output_dir).resolve()
 
     # Create stylesheets directory and write CSS
     stylesheets_dir = docs_path / "stylesheets"
     stylesheets_dir.mkdir(exist_ok=True)
     (stylesheets_dir / "extra.css").write_text(css_content, encoding="utf-8")
+
+    # Download logo if URL provided
+    logo_path = None
+    if mkdocs_config["logo_url"]:
+        try:
+            response = requests.get(mkdocs_config["logo_url"], timeout=10)
+            response.raise_for_status()
+            logo_path = docs_path / "logo.svg"
+            logo_path.write_bytes(response.content)
+            logger.info(f"✓ Logo downloaded to {logo_path}")
+        except Exception as e:
+            logger.warning(
+                f"Failed to download logo from {mkdocs_config['logo_url']}: {e}"
+            )
+            logo_path = None
 
     # Build full config dict with defaults
     full_config = build_mkdoc_config(
@@ -193,7 +207,7 @@ def build_mkdocs_site(output_path: str, mkdocs_config: dict = None) -> Path:
         site_dir,
         mkdocs_config["site_name"],
         mkdocs_config["site_author"],
-        mkdocs_config["logo_url"],
+        "logo.svg" if logo_path else None,
     )
 
     # Create MkDocsConfig object and load from dict

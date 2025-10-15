@@ -35,7 +35,7 @@ def test_load_poll_metadata_invalid_token(real_config):
         llm_model=real_config.llm_model,
         llm_key=real_config.llm_key,
         llm_base_url=real_config.llm_base_url,
-        doc_output_dir=real_config.doc_output_dir,
+        site_output_dir=real_config.site_output_dir,
     )
 
     with pytest.raises(HTTPError) as exc_info:
@@ -61,7 +61,7 @@ def test_load_poll_metadata_nonexistent_poll(real_config):
         llm_model=real_config.llm_model,
         llm_key=real_config.llm_key,
         llm_base_url=real_config.llm_base_url,
-        doc_output_dir=real_config.doc_output_dir,
+        site_output_dir=real_config.site_output_dir,
     )
 
     with pytest.raises(HTTPError) as exc_info:

@@ -93,24 +93,13 @@ class DocumentedState:
     Validates that all necessary files for hosting documentation exist.
     """
 
-    docs_dir: Path
-    site_dir: Path
+    site_dir: Path  # Path to built HTML site
 
     def __post_init__(self):
         from pathlib import Path
 
-        # Convert to Path objects if needed
-        docs_dir = Path(object.__getattribute__(self, "docs_dir"))
+        # Convert to Path object if needed
         site_dir = Path(object.__getattribute__(self, "site_dir"))
-
-        # Validate docs directory exists
-        assert docs_dir.exists(), f"Documentation directory not found: {docs_dir}"
-
-        # Validate required markdown files exist
-        required_md_files = ["index.md", "survey_documentation.md"]
-        for md_file in required_md_files:
-            md_path = docs_dir / md_file
-            assert md_path.exists(), f"Required markdown file not found: {md_path}"
 
         # Validate site directory exists (MkDocs build output)
         assert site_dir.exists(), f"MkDocs site directory not found: {site_dir}"

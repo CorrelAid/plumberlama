@@ -1,5 +1,5 @@
 import io
-from pathlib import Path
+import tempfile
 
 import polars as pl
 import polars.selectors as cs
@@ -345,25 +345,22 @@ def generate_doc(config: Config) -> DocumentedState:
     # Prepare documentation DataFrame (metadata already contains everything)
     doc_df = create_documentation_dataframe(metadata_df)
 
-    # SCreate markdown files
-    num_questions = metadata_df["question_id"].n_unique()
-    create_markdown_files(
-        doc_df, num_questions, config.doc_output_dir, config.survey_id
-    )
+    # Create markdown files in temporary directory
+    with tempfile.TemporaryDirectory(prefix="plumberlama_docs_") as tmp_docs_dir:
+        num_questions = metadata_df["question_id"].n_unique()
+        create_markdown_files(doc_df, num_questions, tmp_docs_dir, config.survey_id)
 
-    #  Build MkDocs site
-    mkdocs_config = {
-        "site_name": config.mkdocs_site_name,
-        "site_author": config.mkdocs_site_author,
-        "repo_url": config.mkdocs_repo_url,
-        "logo_url": config.mkdocs_logo_url,
-    }
-    site_path = build_mkdocs_site(config.doc_output_dir, mkdocs_config)
+        # Build MkDocs site to persistent location
+        mkdocs_config = {
+            "site_name": config.mkdocs_site_name,
+            "site_author": config.mkdocs_site_author,
+            "repo_url": config.mkdocs_repo_url,
+            "logo_url": config.mkdocs_logo_url,
+        }
+        site_path = build_mkdocs_site(
+            tmp_docs_dir, mkdocs_config, config.site_output_dir
+        )
 
     # Return DocumentedState with validated paths
-    docs_path = Path(config.doc_output_dir)
-    logger.info(f"   ✓ Generated documentation at {docs_path}")
-    return DocumentedState(
-        docs_dir=docs_path,
-        site_dir=site_path,
-    )
+    logger.info(f"   ✓ Generated documentation at {site_path}")
+    return DocumentedState(site_dir=site_path)

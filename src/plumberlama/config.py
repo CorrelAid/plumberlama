@@ -10,7 +10,7 @@ class Config:
         llm_model: str,
         llm_key: str,
         llm_base_url: str,
-        doc_output_dir: str,
+        site_output_dir: str,
         mkdocs_site_name: str,
         mkdocs_site_author: str,
         mkdocs_repo_url: str,
@@ -26,6 +26,7 @@ class Config:
         assert lp_api_token, "lama_api_token must not be empty"
         assert lp_api_base_url, "base_url must not be empty"
         assert db_host, "db_host must not be empty"
+        assert site_output_dir, "site_output_dir must not be empty"
 
         self.survey_id = survey_id
 
@@ -40,7 +41,8 @@ class Config:
         self.llm_key = llm_key
 
         # Documentation configuration
-        self.doc_output_dir = doc_output_dir or "/tmp/docs"
+        # Site output directory (where built HTML files go) - required
+        self.site_output_dir = site_output_dir
 
         # MkDocs configuration
         self.mkdocs_site_name = mkdocs_site_name or f"{survey_id} Survey Documentation"
@@ -69,50 +71,55 @@ class Config:
         )
 
 
-def build_mkdoc_config(docs_path, site_dir, site_name, site_author, logo_url):
+def build_mkdoc_config(docs_path, site_dir, site_name, site_author, logo_path):
+    theme_config = {
+        "name": "material",
+        "features": [
+            "navigation.instant",
+            "navigation.tracking",
+            "navigation.tabs",
+            "navigation.sections",
+            "navigation.expand",
+            "navigation.top",
+            "search.suggest",
+            "search.highlight",
+            "search.share",
+            "toc.follow",
+            "content.code.copy",
+        ],
+        "palette": [
+            {
+                "media": "(prefers-color-scheme: light)",
+                "scheme": "default",
+                "primary": "custom",
+                "accent": "custom",
+                "toggle": {
+                    "icon": "material/brightness-7",
+                    "name": "Switch to dark mode",
+                },
+            },
+            {
+                "media": "(prefers-color-scheme: dark)",
+                "scheme": "slate",
+                "primary": "custom",
+                "accent": "custom",
+                "toggle": {
+                    "icon": "material/brightness-4",
+                    "name": "Switch to light mode",
+                },
+            },
+        ],
+    }
+
+    # Add logo only if path is provided
+    if logo_path:
+        theme_config["logo"] = logo_path
+
     return {
         "site_name": site_name,
         "site_description": f"Documentation for {site_name}",
         "site_author": site_author,
-        "theme": {
-            "name": "material",
-            "logo": logo_url,
-            "features": [
-                "navigation.instant",
-                "navigation.tracking",
-                "navigation.tabs",
-                "navigation.sections",
-                "navigation.expand",
-                "navigation.top",
-                "search.suggest",
-                "search.highlight",
-                "search.share",
-                "toc.follow",
-                "content.code.copy",
-            ],
-            "palette": [
-                {
-                    "media": "(prefers-color-scheme: light)",
-                    "scheme": "default",
-                    "primary": "custom",
-                    "accent": "custom",
-                    "toggle": {
-                        "icon": "material/brightness-7",
-                        "name": "Switch to dark mode",
-                    },
-                },
-                {
-                    "media": "(prefers-color-scheme: dark)",
-                    "scheme": "slate",
-                    "primary": "custom",
-                    "accent": "custom",
-                    "toggle": {
-                        "icon": "material/brightness-4",
-                        "name": "Switch to light mode",
-                    },
-                },
-            ],
-        },
+        "theme": theme_config,
         "nav": [
             {"Home": "index.md"},
             {"Survey Documentation": "survey_documentation.md"},
@@ -140,8 +147,8 @@ def build_mkdoc_config(docs_path, site_dir, site_name, site_author, logo_url):
 css_content = """/*-- Main Color --*/
 
 :root {
-  --md-primary-fg-color: #991766;
-  --md-accent-fg-color: #991766;
+  --md-primary-fg-color: #8bb8ff;
+  --md-accent-fg-color: #8bb8ff;
 }
 
 /*-- Logo Size --*/

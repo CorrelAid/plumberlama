@@ -21,29 +21,24 @@ docker compose -f docker-compose.example.yml up -d postgres
 # Run the etl pipeline (requires a database)
 uv run plumberlama etl
 
-# Generate documentation (requires m etadata to be loaded to database)
+# Generate documentation (requires metadata to be loaded to database)
 uv run plumberlama docs
 ```
 
-You can then serve the generated files, for example with the following command (requires busbox utilities to be installed on your OS):
+You can then serve the generated site, for example with the following command (requires busybox utilities to be installed on your OS):
 
 ```bash
-busybox httpd -f -vv -p 1102 -h <output you specified in config>
+busybox httpd -f -vv -p 1102 -h /tmp/site  # Use the SITE_OUTPUT_DIR you configured
 #see localhost:1102
 ```
 
 
 ### Option 2: Use containerized pipeline
 
-See the example docker compose and Dockerfile for how this could work:
+See the example docker compose and Dockerfile for how this could work. The Dockerfile contained in this repository installs the python code from the local source. See the comment in it for how to install from Github repository.
 
 ```bash
-# 1. Create .env file from template
-cp .env.example .env
-# Edit .env with your LamaPoll credentials and configuration
-
-# 2. Start all services (PostgreSQL + Pipeline + Web server)
-docker-compose up
+docker-compose -f docker-compose.example.yml up -d
 ```
 
 This will:
@@ -70,10 +65,11 @@ LLM_MODEL=openrouter/anthropic/claude-3.5-sonnet
 OR_KEY=your_openrouter_key
 LLM_BASE_URL=https://openrouter.ai/api/v1
 
-DOC_OUTPUT_DIR=/tmp/docs
+# Documentation Configuration
+SITE_OUTPUT_DIR=/tmp/site              # Directory for built HTML files
 MKDOCS_SITE_NAME=My Survey Documentation
 MKDOCS_SITE_AUTHOR=Survey Team
-MKDOCS_REPO_URL=https://github.com/org/repo
+MKDOCS_REPO_URL=https://github.com/yourorg/yourrepo
 MKDOCS_LOGO_URL=https://example.com/logo.svg
 
 DB_HOST=postgres

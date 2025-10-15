@@ -32,7 +32,7 @@ services:
       DB_USER: plumberlama
       DB_PASSWORD: plumberlama_dev
       # Output directory - site will be built in /app/site
-      DOC_OUTPUT_DIR: /app/docs
+      SITE_OUTPUT_DIR: /app/docs
     volumes:
       # Mount site output directory for web server
       - site_output:/app/site

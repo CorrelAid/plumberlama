@@ -46,7 +46,7 @@ def survey_with_docs(
     # Generate documentation
     with tempfile.TemporaryDirectory() as tmpdir:
         # Update config with temporary output directory
-        test_db_config.doc_output_dir = str(Path(tmpdir) / "docs")
+        test_db_config.site_output_dir = str(Path(tmpdir) / "docs")
         documented_state = generate_doc(test_db_config)
 
         yield documented_state
@@ -61,7 +61,7 @@ def test_generate_docs_from_fixtures_no_api_calls(
     with tempfile.TemporaryDirectory() as tmpdir:
         # Update config
         test_db_config.survey_id = survey_id
-        test_db_config.doc_output_dir = str(Path(tmpdir) / "docs")
+        test_db_config.site_output_dir = str(Path(tmpdir) / "docs")
 
         # Prepare data
         results_with_counter = sample_processed_results.results_df.with_columns(
@@ -80,29 +80,22 @@ def test_generate_docs_from_fixtures_no_api_calls(
         # Generate documentation (no API calls - all from database)
         documented_state = generate_doc(test_db_config)
 
-        # Verify documentation structure
-        assert documented_state.docs_dir.exists()
+        # Verify built site exists
         assert documented_state.site_dir.exists()
-
-        # Verify markdown files
-        assert (documented_state.docs_dir / "survey_documentation.md").exists()
-        assert (documented_state.docs_dir / "index.md").exists()
-
-        # Verify built site (MkDocs config is built programmatically, not saved as file)
         assert (documented_state.site_dir / "index.html").exists()
         assert (
             documented_state.site_dir / "survey_documentation" / "index.html"
         ).exists()
 
-        # Verify content quality
+        # Verify content quality in built HTML
         with open(
-            documented_state.docs_dir / "survey_documentation.md", "r", encoding="utf-8"
+            documented_state.site_dir / "survey_documentation" / "index.html",
+            "r",
+            encoding="utf-8",
         ) as f:
             content = f.read()
-            # Check that sample question content is present
+            # Check that sample question content is present in HTML
             assert "Wie lautet dein Name?" in content  # From sample_questions_list
-            assert "Total questions:" in content
-            assert "Total variables:" in content
 
 
 def test_documentation_is_hostable(
@@ -114,7 +107,7 @@ def test_documentation_is_hostable(
     with tempfile.TemporaryDirectory() as tmpdir:
         # Update config
         test_db_config.survey_id = survey_id
-        test_db_config.doc_output_dir = str(Path(tmpdir) / "docs")
+        test_db_config.site_output_dir = str(Path(tmpdir) / "docs")
 
         # Prepare and save data
         results_with_counter = sample_processed_results.results_df.with_columns(
@@ -238,7 +231,7 @@ def test_documentation_structure_matches_docker_expectations(
 
         # Update config to match docker structure
         test_db_config.survey_id = survey_id
-        test_db_config.doc_output_dir = str(docs_dir)
+        test_db_config.site_output_dir = str(docs_dir)
 
         # Prepare and save data
         results_with_counter = sample_processed_results.results_df.with_columns(

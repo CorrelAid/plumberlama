@@ -53,7 +53,7 @@ def test_config_for_docs(real_config):
         llm_model=real_config.llm_model,
         llm_key=real_config.llm_key,
         llm_base_url=real_config.llm_base_url,
-        doc_output_dir=real_config.doc_output_dir,
+        site_output_dir=real_config.site_output_dir,
         db_host="localhost",
         db_port=5433,
         db_name="test_db",
@@ -76,7 +76,7 @@ def test_generate_doc_from_database(
             llm_model=test_config_for_docs.llm_model,
             llm_key=test_config_for_docs.llm_key,
             llm_base_url=test_config_for_docs.llm_base_url,
-            doc_output_dir=str(Path(tmpdir) / "docs"),
+            site_output_dir=str(Path(tmpdir) / "docs"),
             db_host=test_config_for_docs.db_host,
             db_port=test_config_for_docs.db_port,
             db_name=test_config_for_docs.db_name,
@@ -87,21 +87,16 @@ def test_generate_doc_from_database(
         # Generate documentation from database
         documented_state = generate_doc(test_config)
 
-        # Verify markdown files were created
-        docs_dir = documented_state.docs_dir
-        assert (docs_dir / "survey_documentation.md").exists()
-        assert (docs_dir / "index.md").exists()
-
-        # Verify content
-        with open(docs_dir / "survey_documentation.md", "r", encoding="utf-8") as f:
-            content = f.read()
-            assert "# Survey Documentation" in content
-            assert "Total questions:" in content
-            assert "Total variables:" in content
-
         # Verify MkDocs site was built
-        assert documented_state.site_dir.exists()
-        assert (documented_state.site_dir / "index.html").exists()
+        site_dir = documented_state.site_dir
+        assert site_dir.exists()
+        assert (site_dir / "index.html").exists()
+        assert (site_dir / "survey_documentation" / "index.html").exists()
+
+        # Verify content in built HTML
+        with open(site_dir / "index.html", "r", encoding="utf-8") as f:
+            content = f.read()
+            assert "Survey Documentation" in content
 
 
 def test_generate_doc_with_custom_mkdocs_config(
@@ -118,7 +113,7 @@ def test_generate_doc_with_custom_mkdocs_config(
             llm_model=test_config_for_docs.llm_model,
             llm_key=test_config_for_docs.llm_key,
             llm_base_url=test_config_for_docs.llm_base_url,
-            doc_output_dir=str(Path(tmpdir) / "docs"),
+            site_output_dir=str(Path(tmpdir) / "docs"),
             mkdocs_site_name="Custom Survey Name",
             mkdocs_site_author="Test Author",
             mkdocs_repo_url="https://github.com/test/repo",
@@ -155,7 +150,7 @@ def test_generate_doc_missing_metadata_fails(test_config_for_docs, db_connection
             llm_model=test_config_for_docs.llm_model,
             llm_key=test_config_for_docs.llm_key,
             llm_base_url=test_config_for_docs.llm_base_url,
-            doc_output_dir=str(Path(tmpdir) / "docs"),
+            site_output_dir=str(Path(tmpdir) / "docs"),
             db_host=test_config_for_docs.db_host,
             db_port=test_config_for_docs.db_port,
             db_name=test_config_for_docs.db_name,
