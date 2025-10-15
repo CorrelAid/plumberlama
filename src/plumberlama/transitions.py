@@ -73,7 +73,7 @@ def parse_poll_metadata(
     loaded_metadata: FetchedMetadataState,
 ) -> ParsedMetadataState:
     """Parse poll metadata from validated Questions into a single metadata DataFrame at variable level."""
-    logger.info("P arsing metadata...")
+    logger.info("Parsing metadata...")
     questions = loaded_metadata.raw_questions
 
     # Create page number mapping
@@ -342,30 +342,16 @@ def generate_doc(config: Config) -> DocumentedState:
     # Retrieve full metadata from database
     metadata_df = query_database(f"SELECT * FROM {table_name}", config)
 
-    # Check if table is empty
-    if len(metadata_df) == 0:
-        logger.error("=" * 60)
-        logger.error("❌ DOCUMENTATION GENERATION FAILED")
-        logger.error("=" * 60)
-        logger.error(f"Table '{table_name}' exists but is empty")
-        logger.error("")
-        logger.error("Run 'plumberlama etl' to load survey data first.")
-        logger.error("=" * 60)
-        raise TableNotFoundError(
-            f"Table '{table_name}' exists but is empty. "
-            f"Run 'plumberlama etl' first to load survey data."
-        )
-
-    # Step 1: Prepare documentation DataFrame (metadata already contains everything)
+    # Prepare documentation DataFrame (metadata already contains everything)
     doc_df = create_documentation_dataframe(metadata_df)
 
-    # Step 2: Create markdown files
+    # SCreate markdown files
     num_questions = metadata_df["question_id"].n_unique()
     create_markdown_files(
         doc_df, num_questions, config.doc_output_dir, config.survey_id
     )
 
-    # Step 3: Build MkDocs site
+    #  Build MkDocs site
     mkdocs_config = {
         "site_name": config.mkdocs_site_name,
         "site_author": config.mkdocs_site_author,

@@ -15,19 +15,23 @@ uv pip install "git+https://github.com/correlaid/plumberlama.git"
 # Create .env file with configuration (see Configuration section below), then set environment with
 set -a && source .env && set +a
 
-# Run the etl pipeline
+#Optionally start a local database
+docker compose -f docker-compose.example.yml up -d postgres
+
+# Run the etl pipeline (requires a database)
 uv run plumberlama etl
 
-# Generate documentation (requires m etadata to be loaded in database)
+# Generate documentation (requires m etadata to be loaded to database)
 uv run plumberlama docs
 ```
 
-You can then serve the generated files, for example with the following command (requires busboy utilities to be installed on your OS):
+You can then serve the generated files, for example with the following command (requires busbox utilities to be installed on your OS):
 
-```
+```bash
 busybox httpd -f -vv -p 1102 -h <output you specified in config>
 #see localhost:1102
 ```
+
 
 ### Option 2: Use containerized pipeline
 
@@ -66,16 +70,12 @@ LLM_MODEL=openrouter/anthropic/claude-3.5-sonnet
 OR_KEY=your_openrouter_key
 LLM_BASE_URL=https://openrouter.ai/api/v1
 
-# Documentation
 DOC_OUTPUT_DIR=/tmp/docs
 MKDOCS_SITE_NAME=My Survey Documentation
 MKDOCS_SITE_AUTHOR=Survey Team
 MKDOCS_REPO_URL=https://github.com/org/repo
 MKDOCS_LOGO_URL=https://example.com/logo.svg
 
-# Database Configuration
-# For Docker: use 'postgres' as host
-# For package install: use 'localhost' or leave empty for DuckDB
 DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=survey_data
@@ -98,14 +98,8 @@ uv sync
 # Set up pre-commit hooks
 uv run pre-commit install
 
-# Start PostgreSQL (optional, can use DuckDB locally)
-docker-compose up -d postgres
-
-# Run the pipeline
-uv run plumberlama etl
-
-# Run tests
-uv run pytest
+# Run e.g. unit tests after making changes
+uv run pytest tests/unit/ -s -vv
 ```
 
 ## Project Structure

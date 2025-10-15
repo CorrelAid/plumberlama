@@ -67,9 +67,15 @@ def cast_results_to_schema(
                 categories = eval(
                     f"[{categories_str}]"
                 )  # Safe since we control the schema
+                # Replace empty strings with None before casting to Enum
                 cast_exprs.append(
                     pl.col(col_name)
-                    .cast(pl.Enum(categories), strict=True)
+                    .cast(pl.String)
+                    .str.strip_chars()
+                    .replace("", None)
+                    .cast(
+                        pl.Enum(categories), strict=False
+                    )  # strict=False allows nulls
                     .alias(col_name)
                 )
         # For String types, keep as-is
