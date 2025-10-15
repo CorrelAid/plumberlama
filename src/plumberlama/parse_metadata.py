@@ -4,10 +4,8 @@ from plumberlama.generated_api_models import Questions
 from plumberlama.type_mapping import polars_to_string
 
 
-def extract_question_type(
-    question: Questions, absolute_position: int, page_number: int
-):
-    """Determine question type and generate variable metadata from Pydantic Question object.
+def parse_question(question: Questions, absolute_position: int, page_number: int):
+    """Parse question structure and generate variable metadata from Pydantic Question object.
 
     Args:
         question: Pydantic Questions object
@@ -44,6 +42,7 @@ def extract_question_type(
             "range_max": None,
             "possible_values_codes": None,
             "possible_values_labels": None,
+            "scale_labels": None,
             "is_other_boolean": False,
             "is_other_text": False,
         }
@@ -128,6 +127,16 @@ def extract_question_type(
                 range_min = None
                 range_max = None
 
+            # Extract scale labels (e.g., ["Strongly Disagree", "Disagree", ...])
+            scale_labels = []
+            if labels and len(labels) > 0:
+                for label_dict in labels:
+                    label_text = (
+                        label_dict.get("de", "") if isinstance(label_dict, dict) else ""
+                    )
+                    if label_text:
+                        scale_labels.append(label_text)
+
             for idx, varname in enumerate(varnames):
                 item_text = ""
                 if idx < len(group_items):
@@ -142,6 +151,7 @@ def extract_question_type(
                         label=item_text,
                         range_min=range_min,
                         range_max=range_max,
+                        scale_labels=scale_labels if scale_labels else None,
                     )
                 )
 

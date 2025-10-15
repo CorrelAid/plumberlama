@@ -1,6 +1,8 @@
 import pandera.polars as pa
 import polars as pl
 
+from plumberlama.type_mapping import string_to_polars
+
 
 class ParsedMetadataSchema(pa.DataFrameModel):
     """Schema for parsed metadata DataFrame at variable level with question text joined.
@@ -14,14 +16,18 @@ class ParsedMetadataSchema(pa.DataFrameModel):
     id: str
     question_position: int
     question_type: str
-    schema_variable_type: object
+    schema_variable_type: (
+        str  # string representation of Polars DataType (e.g., "Int64", "String")
+    )
     question_text: str
     label: str = pa.Field(nullable=True)
     range_min: float = pa.Field(nullable=True)
     range_max: float = pa.Field(nullable=True)
-    possible_values: pl.Struct = pa.Field(nullable=True)
-    is_other_boolean: bool = pa.Field(nullable=True)
-    is_other_text: bool = pa.Field(nullable=True)
+    possible_values_codes: pl.List(pl.String) = pa.Field(nullable=True)
+    possible_values_labels: pl.List(pl.String) = pa.Field(nullable=True)
+    scale_labels: pl.List(pl.String) = pa.Field(nullable=True)
+    is_other_boolean: bool
+    is_other_text: bool
 
 
 class ProcessedMetadataSchema(ParsedMetadataSchema):
@@ -47,13 +53,13 @@ def make_results_schema(variable_df: pl.DataFrame) -> pa.DataFrameSchema:
 
     for var in variable_df.to_dicts():
         var_id = var["id"]
-        var_type = var["schema_variable_type"]
+        var_type = string_to_polars(var["schema_variable_type"])
         checks = []
 
-        if var["question_type"] == "single_choice" and var.get("possible_values"):
-            label_values = [
-                v for v in var["possible_values"].values() if v and v.strip()
-            ]
+        if var["question_type"] == "single_choice" and var.get(
+            "possible_values_labels"
+        ):
+            label_values = var["possible_values_labels"]
             if label_values:
                 var_type = pl.Enum(list(dict.fromkeys(label_values)))
                 checks.append(pa.Check.isin(label_values))

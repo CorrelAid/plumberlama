@@ -1,10 +1,9 @@
-"""Tests for extract_question_type function."""
+"""Tests for parse_question function."""
 
-import polars as pl
 import pytest
 
-from plumberlama.api_models import Questions
-from plumberlama.extract.question_type import extract_question_type
+from plumberlama.generated_api_models import Questions
+from plumberlama.parse_metadata import parse_question
 
 
 @pytest.fixture
@@ -182,7 +181,7 @@ def scale_question():
 def test_multiple_choice_other_no_duplicate_boolean(multiple_choice_other_question):
     """Test that multiple_choice_other doesn't create duplicate 'other' boolean variable."""
     question = Questions(**multiple_choice_other_question)
-    question_dict, variables = extract_question_type(
+    question_dict, variables = parse_question(
         question, absolute_position=8, page_number=1
     )
 
@@ -195,14 +194,14 @@ def test_multiple_choice_other_no_duplicate_boolean(multiple_choice_other_questi
         len(v42_vars) == 1
     ), f"V42 should appear exactly once, found {len(v42_vars)} times"
     assert v42_vars[0]["is_other_boolean"]
-    assert v42_vars[0]["schema_variable_type"] == pl.Boolean
+    assert v42_vars[0]["schema_variable_type"] == "Boolean"
     assert v42_vars[0]["label"] == "Anderes"
 
     # Check for V42.1 (other text field)
     v42_1_vars = [v for v in variables if v["id"] == "V42.1"]
     assert len(v42_1_vars) == 1
     assert v42_1_vars[0]["is_other_text"]
-    assert v42_1_vars[0]["schema_variable_type"] == pl.String
+    assert v42_1_vars[0]["schema_variable_type"] == "String"
 
     # Check regular choice variables have is_other_boolean=False
     v40 = [v for v in variables if v["id"] == "V40"][0]
@@ -212,7 +211,7 @@ def test_multiple_choice_other_no_duplicate_boolean(multiple_choice_other_questi
 def test_multiple_choice_other_empty_label(multiple_choice_other_empty_label_question):
     """Test multiple_choice_other with empty label for 'other' boolean."""
     question = Questions(**multiple_choice_other_empty_label_question)
-    question_dict, variables = extract_question_type(
+    question_dict, variables = parse_question(
         question, absolute_position=16, page_number=1
     )
 
@@ -229,7 +228,7 @@ def test_multiple_choice_other_empty_label(multiple_choice_other_empty_label_que
 def test_matrix_with_items(matrix_question):
     """Test matrix question with item labels."""
     question = Questions(**matrix_question)
-    question_dict, variables = extract_question_type(
+    question_dict, variables = parse_question(
         question, absolute_position=4, page_number=1
     )
 
@@ -239,14 +238,18 @@ def test_matrix_with_items(matrix_question):
     assert variables[1]["label"] == "Item 2"
     assert variables[2]["label"] == "Item 3"
 
+    # Verify scale labels are stored
     for var in variables:
-        assert var["schema_variable_type"] == pl.Int64
+        assert var["schema_variable_type"] == "Int64"
+        assert var["scale_labels"] == ["Option A", "Option B"]
+        assert var["range_min"] == 1
+        assert var["range_max"] == 2
 
 
 def test_input_multiple_with_group_names(input_multiple_question):
     """Test input_multiple gets labels from group names."""
     question = Questions(**input_multiple_question)
-    question_dict, variables = extract_question_type(
+    question_dict, variables = parse_question(
         question, absolute_position=1, page_number=1
     )
 
@@ -254,31 +257,32 @@ def test_input_multiple_with_group_names(input_multiple_question):
     assert len(variables) == 2
     assert variables[0]["label"] == "First field"
     assert variables[1]["label"] == "Second field"
-    assert variables[0]["schema_variable_type"] == pl.String
-    assert variables[1]["schema_variable_type"] == pl.String
+    assert variables[0]["schema_variable_type"] == "String"
+    assert variables[1]["schema_variable_type"] == "String"
 
 
 def test_single_choice_with_possible_values(single_choice_question):
     """Test single_choice creates possible_values mapping."""
     question = Questions(**single_choice_question)
-    question_dict, variables = extract_question_type(
+    question_dict, variables = parse_question(
         question, absolute_position=1, page_number=1
     )
 
     assert question_dict["question_type"] == "single_choice"
     assert len(variables) == 1
-    assert variables[0]["possible_values"] == {
-        "1": "Option A",
-        "2": "Option B",
-        "3": "Option C",
-    }
-    assert variables[0]["schema_variable_type"] == pl.String
+    assert variables[0]["possible_values_codes"] == ["1", "2", "3"]
+    assert variables[0]["possible_values_labels"] == [
+        "Option A",
+        "Option B",
+        "Option C",
+    ]
+    assert variables[0]["schema_variable_type"] == "String"
 
 
 def test_scale_with_range(scale_question):
     """Test scale question extracts range correctly."""
     question = Questions(**scale_question)
-    question_dict, variables = extract_question_type(
+    question_dict, variables = parse_question(
         question, absolute_position=1, page_number=1
     )
 
@@ -286,4 +290,4 @@ def test_scale_with_range(scale_question):
     assert len(variables) == 1
     assert variables[0]["range_min"] == 1
     assert variables[0]["range_max"] == 5
-    assert variables[0]["schema_variable_type"] == pl.Int64
+    assert variables[0]["schema_variable_type"] == "Int64"

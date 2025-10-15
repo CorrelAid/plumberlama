@@ -30,6 +30,9 @@ dependencies = [
     "pre-commit>=4.3.0",
 ]
 
+[project.scripts]
+plumberlama = "plumberlama.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -39,7 +42,7 @@ line-length = 88
 target-version = ['py312']
 exclude = '''
 /(
-    src/plumberlama/api_models\.py
+    src/plumberlama/generated_api_models\.py
 )/
 '''
 
@@ -50,7 +53,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]  # Line too long - handled by black
-exclude = ["src/plumberlama/api_models.py"]
+exclude = ["src/plumberlama/generated_api_models.py"]
 
 
 [tool.ruff.format]

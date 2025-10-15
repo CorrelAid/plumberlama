@@ -6,7 +6,7 @@ tables match the current survey structure before loading new data.
 
 import pytest
 
-from plumberlama import Config
+from plumberlama.config import Config
 from plumberlama.io.database import save_to_database
 from plumberlama.states import PreloadCheckState
 from plumberlama.transitions import preload_check
@@ -91,7 +91,9 @@ def test_preload_check_mismatched_variable_count(
         processed_results_schema=sample_processed_metadata.processed_results_schema,
     )
 
-    with pytest.raises(AssertionError, match="Metadata schema mismatch"):
+    from plumberlama.transitions import MetadataMismatchError
+
+    with pytest.raises(MetadataMismatchError, match="Metadata schema mismatch"):
         preload_check(test_config, modified_metadata)
 
 
@@ -131,7 +133,9 @@ def test_preload_check_mismatched_variable_ids(
         processed_results_schema=sample_processed_metadata.processed_results_schema,
     )
 
-    with pytest.raises(AssertionError, match="Metadata schema mismatch"):
+    from plumberlama.transitions import MetadataMismatchError
+
+    with pytest.raises(MetadataMismatchError, match="Metadata schema mismatch"):
         preload_check(test_config, modified_metadata)
 
 
@@ -170,7 +174,9 @@ def test_preload_check_mismatched_question_types(
         processed_results_schema=sample_processed_metadata.processed_results_schema,
     )
 
-    with pytest.raises(AssertionError, match="Metadata schema mismatch"):
+    from plumberlama.transitions import MetadataMismatchError
+
+    with pytest.raises(MetadataMismatchError, match="Metadata schema mismatch"):
         preload_check(test_config, modified_metadata)
 
 

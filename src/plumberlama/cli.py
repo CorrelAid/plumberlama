@@ -1,11 +1,18 @@
-import os
+"""CLI entrypoint for plumberlama package."""
 
-from plumberlama import Config
+import os
+import sys
+
+from click import command, echo
+
+from plumberlama.config import Config
 from plumberlama.logging_config import get_logger
 from plumberlama.states import LoadedState
 from plumberlama.transitions import (
+    MetadataMismatchError,
     fetch_poll_metadata,
     fetch_poll_results,
+    generate_doc,
     load_data,
     parse_poll_metadata,
     preload_check,
@@ -34,6 +41,11 @@ def run_etl_pipeline() -> LoadedState:
         mkdocs_site_author=os.getenv("MKDOCS_SITE_AUTHOR"),
         mkdocs_repo_url=os.getenv("MKDOCS_REPO_URL"),
         mkdocs_logo_url=os.getenv("MKDOCS_LOGO_URL"),
+        db_host=os.getenv("DB_HOST"),
+        db_port=int(os.getenv("DB_PORT")) if os.getenv("DB_PORT") else None,
+        db_name=os.getenv("DB_NAME"),
+        db_user=os.getenv("DB_USER"),
+        db_password=os.getenv("DB_PASSWORD"),
     )
 
     logger.info("=" * 60)
@@ -44,7 +56,13 @@ def run_etl_pipeline() -> LoadedState:
         parse_poll_metadata(fetch_poll_metadata(config)), config
     )
 
-    validated_metadata = preload_check(config, current_metadata)
+    # Critical validation: ensures survey structure hasn't changed
+    # Pipeline will stop here if validation fails
+    try:
+        validated_metadata = preload_check(config, current_metadata)
+    except MetadataMismatchError:
+        logger.error("Pipeline aborted due to preload check failure")
+        raise
 
     results = process_poll_results(current_metadata, fetch_poll_results(config))
 
@@ -61,7 +79,7 @@ def run_etl_pipeline() -> LoadedState:
 
 
 def generate_docs() -> LoadedState:
-    """Run complete ETL pipeline: Fetch → Parse → Process → Validate → Load.
+    """Generate documentation from survey data.
 
     Loads configuration from environment variables.
     """
@@ -75,27 +93,37 @@ def generate_docs() -> LoadedState:
         mkdocs_site_author=os.getenv("MKDOCS_SITE_AUTHOR"),
         mkdocs_repo_url=os.getenv("MKDOCS_REPO_URL"),
         mkdocs_logo_url=os.getenv("MKDOCS_LOGO_URL"),
+        db_host=os.getenv("DB_HOST"),
+        db_port=int(os.getenv("DB_PORT")) if os.getenv("DB_PORT") else None,
+        db_name=os.getenv("DB_NAME"),
+        db_user=os.getenv("DB_USER"),
+        db_password=os.getenv("DB_PASSWORD"),
     )
 
-    logger.info("=" * 60)
-    logger.info(f"Starting ETL Pipeline for survey: {config.survey_id}")
-    logger.info("=" * 60)
-
-    current_metadata = process_poll_metadata(
-        parse_poll_metadata(fetch_poll_metadata(config)), config
-    )
-
-    validated_metadata = preload_check(config, current_metadata)
-
-    results = process_poll_results(current_metadata, fetch_poll_results(config))
-
-    loaded_state = load_data(
-        results, validated_metadata, config, meta_state=current_metadata
-    )
+    generate_doc(config)
 
     logger.info("=" * 60)
-    logger.info("ETL Pipeline completed successfully!")
-    logger.info(f"Load counter: {validated_metadata.load_counter}")
+    logger.info("Documentation generated successfully!")
     logger.info("=" * 60)
 
-    return loaded_state
+
+@command()
+def etl():
+    """Run the ETL pipeline to fetch, process, and load survey data."""
+    try:
+        run_etl_pipeline()
+        sys.exit(0)
+    except Exception as e:
+        echo(f"ETL pipeline failed: {e}", err=True)
+        sys.exit(1)
+
+
+@command()
+def docs():
+    """Generate documentation for the survey."""
+    try:
+        generate_docs()
+        sys.exit(0)
+    except Exception as e:
+        echo(f"Documentation generation failed: {e}", err=True)
+        sys.exit(1)

@@ -10,7 +10,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from plumberlama import Config
+from plumberlama.config import Config
 from plumberlama.io.database import save_to_database
 from plumberlama.transitions import generate_doc
 

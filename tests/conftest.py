@@ -1,21 +1,16 @@
-"""Shared test fixtures for LamaPoll API data.
-
-This module contains realistic sample data structures that match the LamaPoll API response format.
-The data is based on actual API responses from the /polls/{poll_id}/questions endpoint.
-"""
-
 import os
 
+import polars as pl
 import pytest
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
 
-from plumberlama import Config
-from plumberlama.api_models import Questions
+from plumberlama.config import Config
+from plumberlama.generated_api_models import Questions
 from plumberlama.io.api import preprocess_api_response
-from plumberlama.io.database import get_connection_uri
 from plumberlama.logging_config import setup_logging
-from plumberlama.states import FetchedMetadataState
+from plumberlama.states import FetchedMetadataState, ProcessedMetadataState
+from plumberlama.validation_schemas import make_results_schema
 
 # Load environment variables from .env file
 load_dotenv()
@@ -404,10 +399,6 @@ def sample_processed_metadata(sample_parsed_metadata):
     Returns:
         ProcessedMetadataState with renamed variables and schema
     """
-    import polars as pl
-
-    from plumberlama.schemas import make_results_schema
-    from plumberlama.states import ProcessedMetadataState
 
     # Create a simple rename mapping based on question labels
     # This mimics what the LLM would do but uses deterministic names
@@ -567,14 +558,88 @@ def multiple_choice_other_subset(variable_naming_test_data):
     return variable_naming_test_data.filter(pl.col("question_id") == 6)
 
 
+@pytest.fixture(scope="session")
+def docker_compose_test_db():
+    """Start PostgreSQL container from docker-compose.test.yml for the test session.
+
+    Starts the container once at the beginning of the test session and
+    stops it at the end. Uses subprocess to manage docker-compose directly.
+    """
+    import subprocess
+    import time
+
+    compose_file = os.path.join(os.path.dirname(__file__), "docker-compose.test.yml")
+    project_name = "plumberlama_test"
+
+    # Start docker-compose
+    subprocess.run(
+        ["docker-compose", "-f", compose_file, "-p", project_name, "up", "-d"],
+        check=True,
+        capture_output=True,
+    )
+
+    # Wait for PostgreSQL to be ready
+    max_attempts = 30
+    for attempt in range(max_attempts):
+        try:
+            result = subprocess.run(
+                [
+                    "docker-compose",
+                    "-f",
+                    compose_file,
+                    "-p",
+                    project_name,
+                    "exec",
+                    "-T",
+                    "postgres",
+                    "pg_isready",
+                    "-U",
+                    "test_user",
+                ],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                break
+        except subprocess.TimeoutExpired:
+            pass
+        time.sleep(1)
+    else:
+        # Cleanup on failure
+        subprocess.run(
+            ["docker-compose", "-f", compose_file, "-p", project_name, "down", "-v"],
+            capture_output=True,
+        )
+        pytest.fail("PostgreSQL container failed to become ready")
+
+    yield
+
+    # Cleanup: stop and remove containers
+    subprocess.run(
+        ["docker-compose", "-f", compose_file, "-p", project_name, "down", "-v"],
+        capture_output=True,
+    )
+
+
 @pytest.fixture
-def db_connection():
+def db_connection(docker_compose_test_db, monkeypatch):
     """Create a database connection for integration tests and clean up after.
+
+    Uses PostgreSQL container from docker-compose.test.yml.
+    Sets environment variables to ensure all database functions use test DB.
 
     Yields:
         SQLAlchemy engine connected to test database
     """
-    connection_uri = get_connection_uri()
+    # Set environment variables to point to test database
+    monkeypatch.setenv("DB_HOST", "localhost")
+    monkeypatch.setenv("DB_PORT", "5433")
+    monkeypatch.setenv("DB_USER", "test_user")
+    monkeypatch.setenv("DB_PASSWORD", "test_password")
+    monkeypatch.setenv("DB_NAME", "test_db")
+
+    # Override connection URI to use test container
+    connection_uri = "postgresql://test_user:test_password@localhost:5433/test_db"
     engine = create_engine(connection_uri)
 
     # Verify connection works

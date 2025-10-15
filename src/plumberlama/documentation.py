@@ -13,16 +13,9 @@ def create_documentation_dataframe(
     metadata_df: pl.DataFrame,
 ) -> pl.DataFrame:
     """Create documentation DataFrame from metadata (already contains question text)."""
-    # Prepare type display - convert object to string representation
-    # Note: Using map_elements because schema_variable_type is Object type (Polars DataType objects)
+    # schema_variable_type is now a string, so we can use it directly
     doc_df = metadata_df.with_columns(
-        [
-            pl.col("schema_variable_type")
-            .map_elements(
-                lambda x: str(x).replace("DataType", ""), return_dtype=pl.String
-            )
-            .alias("type_display")
-        ]
+        [pl.col("schema_variable_type").alias("type_display")]
     )
 
     # Format range information from range_min and range_max
@@ -47,23 +40,23 @@ def create_documentation_dataframe(
         ]
     )
 
-    # Format possible values from struct column or string
-    # When loaded from database, dicts are stored as strings
+    # Format possible values from list column
     doc_df = doc_df.with_columns(
         [
-            pl.when(pl.col("possible_values").is_not_null())
-            .then(
-                pl.col("possible_values").map_elements(
-                    lambda x: (
-                        "; ".join(str(v) for v in x.values() if v)
-                        if isinstance(x, dict)
-                        else x if isinstance(x, str) else ""
-                    ),
-                    return_dtype=pl.String,
-                )
-            )
+            pl.when(pl.col("possible_values_labels").is_not_null())
+            .then(pl.col("possible_values_labels").list.join("; "))
             .otherwise(pl.lit(""))
             .alias("possible_values_display")
+        ]
+    )
+
+    # Format scale labels from list column
+    doc_df = doc_df.with_columns(
+        [
+            pl.when(pl.col("scale_labels").is_not_null())
+            .then(pl.col("scale_labels").list.join("; "))
+            .otherwise(pl.lit(""))
+            .alias("scale_labels_display")
         ]
     )
 
@@ -78,6 +71,7 @@ def create_documentation_dataframe(
             pl.col("type_display").alias("data_type"),
             pl.col("range_display").alias("range"),
             pl.col("possible_values_display").alias("possible_values"),
+            pl.col("scale_labels_display").alias("scale_labels"),
             pl.col("question_position"),
         ]
     )

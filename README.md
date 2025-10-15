@@ -1,233 +1,214 @@
+# plumberlama
 
-# U25 Survey Data Processing Pipeline
-
-It's lama with one l! Generate documentation for repeated cross-sectional (i.e. different/anonymous participants) surveys  created with Lamapoll and process results to simplify self-service data analysis and visualization.
-
+It's lama with one l! Generate documentation for repeated cross-sectional surveys (anonymous participants) created with LamaPoll and process results to simplify self-service data analysis and visualization.
 
 ## Quick Start
 
-Run the complete pipeline:
+### Option 1: Docker (Recommended)
+
+The easiest way to run the pipeline with PostgreSQL:
 
 ```bash
-uv run python cli.py all
+# 1. Create .env file from template
+cp .env.example .env
+# Edit .env with your LamaPoll credentials and configuration
+
+# 2. Start PostgreSQL and run the pipeline
+docker-compose up
 ```
 
-Or run individual steps:
+This will:
+- Start a PostgreSQL database
+- Run the ETL pipeline to fetch and process survey data
+- Generate documentation in `./output/docs`
+- Generate MkDocs site in `./output/site`
+
+### Option 2: Install as Package
+
+Install plumberlama as a Python package (requires Python 3.12+):
 
 ```bash
-# Step 1: Process data from API
-uv run python cli.py process
+# From GitHub
+uv pip install "git+https://github.com/username/plumberlama.git"
 
-# Step 2: Generate documentation
-uv run python cli.py docs
+# Or install a specific version/branch/tag
+uv pip install "git+https://github.com/username/plumberlama.git@v0.1.0"
 
-# Step 3: Load to database
-uv run python cli.py load
+# Create .env file with configuration (see Configuration section below)
+
+# Run the pipeline
+plumberlama etl
+
+# Or generate documentation only
+plumberlama docs
 ```
 
-## CLI Commands
+### Configuration
 
-### `process`
-Fetch and process survey data from LamaPoll API:
-- Determines question types and infers schema
-- Filters invalid responses
-- Generates semantic variable names using LLM
-- Validates and casts data types
-- Caches results for subsequent steps
+Create a `.env` file with your configuration:
 
 ```bash
-uv run python cli.py process [OPTIONS]
+# Survey Configuration
+SURVEY_ID=my_survey                    # Stable identifier across poll iterations
+LP_POLL_ID=1850964                     # LamaPoll poll ID
+LP_API_TOKEN=your_token_here           # LamaPoll API token
+LP_API_BASE_URL=https://app.lamapoll.de/api/v2
 
-Options:
-  --poll-id INTEGER  LamaPoll poll ID (default: 1850964)
-  --cache/--no-cache Cache processed data (default: true)
+# LLM Configuration (for variable naming)
+LLM_MODEL=openrouter/anthropic/claude-3.5-sonnet
+OR_KEY=your_openrouter_key
+LLM_BASE_URL=https://openrouter.ai/api/v1
+
+# Documentation
+DOC_OUTPUT_DIR=/tmp/docs
+MKDOCS_SITE_NAME=My Survey Documentation
+MKDOCS_SITE_AUTHOR=Survey Team
+MKDOCS_REPO_URL=https://github.com/org/repo
+MKDOCS_LOGO_URL=https://example.com/logo.svg
+
+# Database Configuration
+# For Docker: use 'postgres' as host
+# For package install: use 'localhost' or leave empty for DuckDB
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=survey_data
+DB_USER=plumberlama
+DB_PASSWORD=plumberlama_dev
 ```
 
-### `docs`
-Generate MkDocs documentation from processed data:
+## Development
+
+For contributing or local development:
 
 ```bash
-uv run python cli.py docs [OPTIONS]
+# Clone the repository
+git clone <repo-url>
+cd plumberlama
 
-Options:
-  -o, --output PATH  Output directory (default: docs)
+# Install dependencies and set up environment
+uv sync
+
+# Set up pre-commit hooks
+uv run pre-commit install
+
+# Start PostgreSQL (optional, can use DuckDB locally)
+docker-compose up -d postgres
+
+# Run the pipeline
+uv run plumberlama etl
+
+# Run tests
+uv run pytest
 ```
 
-### `load`
-Load processed data into database:
+## Project Structure
 
-```bash
-uv run python cli.py load [OPTIONS]
-
-Options:
-  --env [DEV|PROD]           Database environment (default: DEV)
-  --prefix TEXT              Table name prefix (default: u25_survey)
-  --if-exists [replace|append|fail]  Action if tables exist (default: replace)
+```
+plumberlama/
+├── src/plumberlama/
+│   ├── cli.py                  # Command-line interface
+│   ├── config.py               # Configuration dataclass
+│   ├── states.py               # Immutable state objects
+│   ├── transitions.py          # State transition functions
+│   ├── validation_schemas.py   # Pandera validation schemas
+│   ├── api_models.py           # Pydantic API models (auto-generated)
+│   ├── parse_metadata.py       # Question parsing and type inference
+│   ├── documentation.py        # MkDocs generation
+│   ├── type_mapping.py         # Polars ↔ String type conversion
+│   ├── transform/
+│   │   ├── cast_types.py       # Type casting
+│   │   ├── decode.py           # Choice decoding
+│   │   ├── llm.py              # LLM integration
+│   │   ├── rename_results_columns.py
+│   │   └── variable_naming.py  # Semantic naming
+│   └── io/
+│       ├── api.py              # API client
+│       └── database.py         # Database operations
+├── tests/
+│   ├── unit/               # Unit tests
+│   ├── integration/        # Integration tests
+│   └── e2e/                # End-to-end tests
+└── docs/                   # Generated documentation
 ```
 
-### `all`
-Run complete pipeline (process → docs → load):
+## How It Works
 
-```bash
-uv run python cli.py all [OPTIONS]
+The pipeline is built using **explicit state transitions** following functional programming principles. Each transition is a pure function that takes the current state and returns a new state.
 
-Options:
-  --poll-id INTEGER   LamaPoll poll ID
-  --env [DEV|PROD]    Database environment
+### Pipeline Architecture
+
+```mermaid
+flowchart TD
+    Config["Config<br/><small>SURVEY_ID + LP_POLL_ID</small>"]
+
+    Config --> FetchMeta["Fetch Metadata<br/><small>from LP_POLL_ID</small>"]
+
+    FetchMeta --> ParseMeta[Parse Metadata<br/>Extract Variables]
+    ParseMeta --> ProcessMeta[Process Metadata<br/>Variable Renaming etc.]
+
+    ProcessMeta --> PreloadCheck{"Preload Check<br/><small>Query {SURVEY_ID}_metadata</small>"}
+
+    PreloadCheck -->|"✓ No tables<br/>load_counter=0<br/>CREATE"| FetchResults["Fetch Results<br/><small>from LP_POLL_ID</small>"]
+    PreloadCheck -->|"✓ Match<br/>load_counter>0<br/>APPEND"| FetchResults
+    PreloadCheck -->|"✗ Mismatch<br/>STOP"| Stop["❌ Aborted<br/>"]
+
+    FetchResults --> ProcessResults[Process Results<br/>Transform Data]
+
+    ProcessResults --> LoadData["Load Data<br/><small>to {SURVEY_ID}_{results&metadata}</small>"]
+
+    LoadData -.->|Optional:<br/>plumberlama docs| Document["Documentation<br/><small>from {SURVEY_ID}_metadata</small>"]
+
+    style Config fill:#e1f5ff,stroke:#333,stroke-width:2px,color:#000
+    style FetchMeta fill:#fff4e1,stroke:#333,stroke-width:2px,color:#000
+    style FetchResults fill:#fff4e1,stroke:#333,stroke-width:2px,color:#000
+    style ParseMeta fill:#f0e1ff,stroke:#333,stroke-width:2px,color:#000
+    style ProcessMeta fill:#f0e1ff,stroke:#333,stroke-width:2px,color:#000
+    style PreloadCheck fill:#ffeb3b,stroke:#333,stroke-width:3px,color:#000
+    style ProcessResults fill:#e1ffe1,stroke:#333,stroke-width:2px,color:#000
+    style LoadData fill:#ffe1e1,stroke:#333,stroke-width:2px,color:#000
+    style Document fill:#ffe1f5,stroke:#333,stroke-width:2px,color:#000
+    style Stop fill:#ff5252,stroke:#333,stroke-width:2px,color:#fff
 ```
 
-## Pipeline
+### Survey Identity & Cross-Sectional Data
 
-1. Using the `/questions` endpoint for the relevant poll, determine question types
-  - LamaPoll has its own question types, but we further distinguish its types
-    - The assumptions that come with determining question types are verified: it determines how many variables are associated with a question and what types these variables have
-  - We are infering a schema that the poll results will be cast to/checked against
-    - We create new variable names based on which question a variable belong to and generate suffixes based on labels so that it encodes more information
-    - Some variables can only take predefined values, we add this extract this info and add it to the schema
+- **`SURVEY_ID`**: Stable identifier for your cross-sectional survey. Names database tables (`{survey_id}_metadata`, `{survey_id}_results`)
+- **`LP_POLL_ID`**: LamaPoll poll ID, can change between waves. Data from different polls with identical structure is appended to the same `SURVEY_ID` tables
+- **`load_counter`**: Tracks which wave data came from (0=first load/CREATE, >0=subsequent loads/APPEND)
 
-2. Using the `/legacyResults` endpoint for the relevant poll, retrieve and process the results
-  - Filter out completely empty responses and incomplete responses
-  - We process data so that a check against the inferred schema succeeds#
-    - decode integer vars that represent choices to their representations
-    - for questions that allow specifying "other" values, create a new variable that holds the text input and keep one var that is the boolean of whether other was specified
+**Example:** Three yearly waves with different `LP_POLL_ID`s but same `SURVEY_ID=yearly_feedback` → all stored in `yearly_feedback_*` tables with load_counter 0, 1, 2.
 
-3. We generate documentation that lists all variables, their type and associated questions and question types
+### Question Type Inference
 
-4. We save the processed results and metadata to a database
-  - In DEV mode: Uses local DuckDB database (fast, serverless, no setup required)
-  - In PROD mode: Configurable for production database (PostgreSQL, etc.)
+LamaPoll's native question types are refined based on structure:
 
-### Repeated pipeline runs
+| LamaPoll Type | Groups | Variables | Inferred Type | Schema |
+|---------------|--------|-----------|---------------|--------|
+| INPUT | 1 | 1 | `input_single_<type>` | String/Int64 |
+| INPUT | >1 | 1 per group (>1 total) | `input_multiple_<type>` | Multiple String/Int64 |
+| CHOICE | 1 | 1 | `single_choice` | String (Enum) |
+| CHOICE | 1 | >1 | `multiple_choice` | Multiple Boolean |
+| CHOICE | 2 | >1 | `multiple_choice_other` | Boolean + String |
+| SCALE | 1 | 1 | `scale` | Int64 with range |
+| MATRIX | 1 | >1 | `matrix` | Multiple Int64 with range |
 
-- in the config, we can specify a survey_id (e.g. u25_survey) for the repeated survey
-  - this can be arbitrarily set and is stable across potentially multiple survey iterations (poll id can be different)
-  - at the beginning of the pipeline, we check if there are already tables in the database
-    - if thats not the case, we create new tables for metadata and results -> we add add a column load_counter = 0 for all result rows
-    - if thats the case, we infer the metadata for the current poll id and then compare the metadata in the db with the new metadata
-      - if different, we raise
-      - if not, we continue with fetching and processing results but append to the existing tables -> we add add a column load_counter = max(load_counter)+1 for all result rows
+See `src/plumberlama/parse_metadata.py` for full inference logic.
 
-## Database Storage
+## Design Principles
 
-The pipeline automatically saves results to a database. The environment is controlled by the `ENV` variable in your `.env` file:
+**Functional Programming:**
+- Pure functions with no side effects
+- Immutable state objects (frozen dataclasses)
+- Explicit data flow through state transitions
+- Declarative style
 
-```bash
-# In .env file
-ENV=DEV  # Use local DuckDB (default)
-# ENV=PROD  # Use production database
-```
+**Contract Programming:**
+- Preconditions) and postconditions enforced by state validation
+- Type annotations guarantee correct data flow
+- Pandera schemas enforce DataFrame structure invariants
 
-### DEV Mode (DuckDB)
-
-By default, the pipeline uses DuckDB for local development:
-
-- Database location: `data/survey_results.duckdb`
-- Three tables are created:
-  - `u25_survey_results`: Survey responses (one row per respondent)
-  - `u25_survey_variables`: Variable metadata
-  - `u25_survey_questions`: Question metadata
-
-### Querying the Database
-
-You can query the DuckDB database directly:
-
-```python
-from plumberlama.database import query_database
-
-# Get all results
-results = query_database("SELECT * FROM u25_survey_results")
-
-# Get variable metadata
-variables = query_database("SELECT * FROM u25_survey_variables WHERE question_type = 'single_choice'")
-```
-
-Or use DuckDB CLI:
-
-```bash
-duckdb data/survey_results.duckdb
-```
-
-## Documentation
-
-The project uses MkDocs with Material theme to generate searchable documentation.
-
-### Viewing the Documentation
-
-After running `main.py` to generate the documentation:
-
-```bash
-# Preview locally with live reload
-uv run mkdocs serve
-
-# Build static site
-uv run mkdocs build
-```
-
-The documentation will be available at http://localhost:8000
-
-### Deploying to GitHub Pages
-
-The documentation is automatically deployed to GitHub Pages when you push to the main branch. The workflow is defined in `.github/workflows/deploy-docs.yml`.
-
-You can also manually deploy:
-
-```bash
-uv run mkdocs gh-deploy
-```
-
-# Lamapoll Investigations and Thoughts
-
-### Output Formats
-
-- Lamapolls V2 API only offers retrieving aggregated results per question. Thats a suitable output format for univariate analysis (statistics are even provided directly), but not optimal for multivariate methods.
-
-- However the API has an endpoint to retrieve V1 compatible legacy results that returns a data where one row equals one participant. This long format allows multivariate methods and is **tidy data**
-
-- **Tidy data**:
-  - Every column is a variable.
-  - Every row is an observation (one respondent).
-  - Every cell holds a single value.
-
-- The Lamapoll data schema contains the entity question, group, varnames, items and labels.
-  - questions have a type
-  - questions can have multiple groups
-  - groups can have multiple varnames, multiple items and multiple labels
-  - items have one input type that can be null
-  - items and varnames are not equal
-  - when there are multiple items question type is matrix
-  - labels are answer options, but do not have to equal variables....
-  - labels can be empty
-  - in case of matrices, labels are possible values a set of vars can take, same with single choice
-  - labels are baiscally values a variable can take
-
-- Entity Question does not actually mean question in the language sense, its more of a **task**, e.g. "rate the following statements"
-- Most fitting entity of analysis are **variables**
-  - Variables:
-    - synonym: **data point**
-    - holds one value per respondent
-
-
-# Survey Design Feedback
-- The fact that nothing is mandatory is not ideal (empty reponses possible)
-- there are basically two types of single choice (dropdown and radio buttons where only choice is possible), but they are the same in the data
-- gender is multiple choice (on purpose?)
-
-# Followed Design Patterns/paradigms
-- Functional Programming
-  - declarative programming
-  - using pure functions that have no side effects (memory or I/O)
-  - explicit Data Flow
-- Contract Programming
-  - Pre-Conditions and Post-Conditions
-- Data-Oriented Programming
-  - Separate data from code
-  - Represent data with generic data structures
-  - Data is immutable
-    - Keep Data Immutable
-    - Data never changes after creation
-    - Modifications create new versions
-  - Separate data schema from representation
-
-
- if_exists == "replace" should not be possible. either create or append. maybe rename
-  this variable to something more fitting
+**Data-Oriented Programming:**
+- Separate data from code
+- Generic data structures (DataFrames) over custom classes
+- Immutable by default
+- Schema separated from representation

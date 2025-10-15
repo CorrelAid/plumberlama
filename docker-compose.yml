@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: plumberlama-postgres
+    environment:
+      POSTGRES_USER: plumberlama
+      POSTGRES_PASSWORD: plumberlama_dev
+      POSTGRES_DB: survey_data
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plumberlama"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - plumberlama
+
+  etl:
+    build: .
+    image: plumberlama:latest
+    container_name: plumberlama-etl
+    command: ["plumberlama", "etl"]
+    env_file:
+      - .env
+    environment:
+      # Database connection (override if needed)
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: survey_data
+      DB_USER: plumberlama
+      DB_PASSWORD: plumberlama_dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - plumberlama
+
+  docs:
+    build: .
+    image: plumberlama:latest
+    container_name: plumberlama-docs
+    command: ["plumberlama", "docs"]
+    env_file:
+      - .env
+    environment:
+      # Database connection (override if needed)
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: survey_data
+      DB_USER: plumberlama
+      DB_PASSWORD: plumberlama_dev
+    volumes:
+      # Mount output directory for generated docs
+      - ./output/docs:/tmp/docs
+      - ./output/site:/app/site
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - plumberlama
+
+volumes:
+  postgres_data:
+
+networks:
+  plumberlama:
+    driver: bridge

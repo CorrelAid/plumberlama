@@ -6,18 +6,17 @@ import polars.selectors as cs
 import requests
 from polars.testing import assert_frame_equal
 
-from plumberlama import Config
-from plumberlama.api_models import Questions
+from plumberlama.config import Config
 from plumberlama.documentation import (
     build_mkdocs_site,
     create_documentation_dataframe,
     create_markdown_files,
 )
-from plumberlama.extract.question_type import extract_question_type
+from plumberlama.generated_api_models import Questions
 from plumberlama.io.api import make_headers, preprocess_api_response
 from plumberlama.io.database import query_database, save_to_database
 from plumberlama.logging_config import get_logger
-from plumberlama.schemas import make_results_schema
+from plumberlama.parse_metadata import parse_question
 from plumberlama.states import (
     DocumentedState,
     FetchedMetadataState,
@@ -33,8 +32,15 @@ from plumberlama.transform.decode import decode_single_choice
 from plumberlama.transform.llm import load_llm, make_generator
 from plumberlama.transform.rename_results_columns import rename_results_columns
 from plumberlama.transform.variable_naming import rename_vars_with_labels
+from plumberlama.validation_schemas import make_results_schema
 
 logger = get_logger(__name__)
+
+
+class MetadataMismatchError(Exception):
+    """Raised when survey metadata doesn't match existing database schema."""
+
+    pass
 
 
 def fetch_poll_metadata(config: Config) -> FetchedMetadataState:
@@ -72,7 +78,7 @@ def parse_poll_metadata(
     all_variables = []
     for abs_position, question in enumerate(questions, start=1):
         # extract question data and variables
-        question_dict, vars_for_question = extract_question_type(
+        question_dict, vars_for_question = parse_question(
             question, abs_position, page_mapping[question.pageId]
         )
         question_data.append(question_dict)
@@ -128,10 +134,19 @@ def process_poll_metadata(
 def preload_check(
     config: Config, new_metadata: ProcessedMetadataState
 ) -> PreloadCheckState:
-    """Check if tables exist and validate metadata consistency."""
+    """Check if tables exist and validate metadata consistency.
+
+    This is a critical validation step that ensures data integrity:
+    - If load_counter=0: No tables exist, will CREATE new tables
+    - If load_counter>0: Tables exist, will APPEND to existing data
+
+    IMPORTANT: Pipeline will STOP if survey structure has changed since last load.
+    """
     logger.info("Validating metadata...")
     try:
-        existing_df = query_database(f"SELECT * FROM {config.survey_id}_metadata")
+        existing_df = query_database(
+            f"SELECT * FROM {config.survey_id}_metadata", config
+        )
     except Exception as e:
         # Check if it's a "table doesn't exist" error
         error_msg = str(e).lower()
@@ -142,9 +157,8 @@ def preload_check(
             or "does not exist" in error_msg
         ):
             # Tables don't exist - first load
-            logger.info(
-                "✓ No existing tables found - creating new tables with load_counter=0"
-            )
+            logger.info("✓ No existing tables found - first load detected")
+            logger.info("  → load_counter=0: Will CREATE new tables")
             return PreloadCheckState(load_counter=0)
         else:
             # Some other error - re-raise
@@ -160,7 +174,20 @@ def preload_check(
             check_column_order=False,
         )
     except AssertionError as e:
-        raise AssertionError(
+        logger.error("=" * 60)
+        logger.error("❌ PRELOAD CHECK FAILED - PIPELINE STOPPED")
+        logger.error("=" * 60)
+        logger.error(f"Survey structure has changed for '{config.survey_id}'")
+        logger.error(
+            "The survey cannot be loaded because questions/variables differ from existing data."
+        )
+        logger.error("This prevents data corruption and maintains schema consistency.")
+        logger.error("")
+        logger.error("To proceed, either:")
+        logger.error("  1. Restore the original survey structure in LamaPoll")
+        logger.error("  2. Drop existing tables to start fresh (data loss!)")
+        logger.error("=" * 60)
+        raise MetadataMismatchError(
             f"Metadata schema mismatch for survey '{config.survey_id}'.\n"
             f"The survey structure has changed since the last load.\n"
             f"Details: {e}"
@@ -168,13 +195,15 @@ def preload_check(
 
     # Get current max load_counter
     results_df = query_database(
-        f"SELECT MAX(load_counter) as max_counter FROM {config.survey_id}_results"
+        f"SELECT MAX(load_counter) as max_counter FROM {config.survey_id}_results",
+        config,
     )
     max_counter = results_df["max_counter"][0]
     load_counter = (max_counter + 1) if max_counter is not None else 1
 
+    logger.info("✓ Metadata validation passed - existing tables found")
     logger.info(
-        f"✓ Metadata validation passed - appending with load_counter={load_counter}"
+        f"  → load_counter={load_counter}: Will APPEND new results to existing data"
     )
     return PreloadCheckState(load_counter=load_counter)
 
@@ -216,7 +245,9 @@ def process_poll_results(
 
     # Decode single choice (converts codes to labels)
     results_df = decode_single_choice(
-        processed_metadata.processed_results_schema, results_df
+        processed_metadata.processed_results_schema,
+        results_df,
+        processed_metadata.final_metadata_df,
     )
 
     # Cast columns to expected types
@@ -257,13 +288,16 @@ def load_data(
         metadata_df = meta_state.final_metadata_df
     else:
         # Retrieve metadata from database - don't save it again
-        metadata_df = query_database(f"SELECT * FROM {config.survey_id}_metadata")
+        metadata_df = query_database(
+            f"SELECT * FROM {config.survey_id}_metadata", config
+        )
 
     loaded = save_to_database(
         results_df=results_with_counter,
         metadata_df=metadata_df,
         table_prefix=config.survey_id,
         append=append,
+        config=config,
     )
     logger.info(
         f"   ✓ Loaded {len(results_with_counter)} responses with load_counter={validated_state.load_counter}"
@@ -282,7 +316,7 @@ def generate_doc(config: Config) -> DocumentedState:
     """
     logger.info("Generating documentation from database...")
     # Retrieve metadata from database
-    metadata_df = query_database(f"SELECT * FROM {config.survey_id}_metadata")
+    metadata_df = query_database(f"SELECT * FROM {config.survey_id}_metadata", config)
 
     # Step 1: Prepare documentation DataFrame (metadata already contains everything)
     doc_df = create_documentation_dataframe(metadata_df)

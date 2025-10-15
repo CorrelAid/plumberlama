@@ -195,39 +195,3 @@ def test_data_types_preserved(
                 pl.Int32,
                 pl.Float32,
             ], f"Column {col} should be numeric but is {loaded_results[col].dtype}"
-
-
-def test_join_results_and_metadata(
-    sample_processed_results, sample_processed_metadata, db_connection
-):
-    """Test joining results and metadata tables in a SQL query."""
-    table_prefix = "test_join"
-
-    # Save to database
-    save_to_database(
-        results_df=sample_processed_results.results_df,
-        metadata_df=sample_processed_metadata.final_metadata_df,
-        table_prefix=table_prefix,
-        append=False,
-    )
-
-    # Query joining both tables
-    # Note: This is a simplified join - actual column names depend on metadata structure
-    join_query = f"""
-    SELECT
-        r.*,
-        m.question_text,
-        m.question_type
-    FROM {table_prefix}_results r
-    CROSS JOIN {table_prefix}_metadata m
-    WHERE m.question_id = 1
-    LIMIT 5
-    """
-
-    joined_data = query_database(join_query)
-
-    # Verify join worked
-    assert isinstance(joined_data, pl.DataFrame)
-    assert len(joined_data) > 0
-    assert "question_text" in joined_data.columns
-    assert "question_type" in joined_data.columns

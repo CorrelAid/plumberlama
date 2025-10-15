@@ -1,8 +1,8 @@
 import pytest
 from requests.exceptions import HTTPError
 
-from plumberlama import Config
-from plumberlama.api_models import Questions
+from plumberlama.config import Config
+from plumberlama.generated_api_models import Questions
 from plumberlama.states import FetchedMetadataState
 from plumberlama.transitions import fetch_poll_metadata
 

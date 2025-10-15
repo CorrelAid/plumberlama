@@ -4,9 +4,9 @@ from pathlib import Path
 import pandera.polars as pa
 import polars as pl
 
-from plumberlama.api_models import Questions
+from plumberlama.generated_api_models import Questions
 from plumberlama.logging_config import get_logger
-from plumberlama.schemas import ParsedMetadataSchema, ProcessedMetadataSchema
+from plumberlama.validation_schemas import ParsedMetadataSchema, ProcessedMetadataSchema
 
 logger = get_logger(__name__)
 
