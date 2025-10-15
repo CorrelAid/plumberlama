@@ -3,6 +3,43 @@ import re
 import polars as pl
 
 
+def _sanitize_suffix(suffix: str) -> str:
+    """Remove German umlauts and other non-ASCII characters from variable suffix.
+
+    Replaces:
+    - ä → ae
+    - ö → oe
+    - ü → ue
+    - ß → ss
+
+    Then removes any remaining non-ASCII characters.
+
+    Args:
+        suffix: Variable suffix that may contain umlauts
+
+    Returns:
+        ASCII-only suffix
+    """
+    replacements = {
+        "ä": "ae",
+        "ö": "oe",
+        "ü": "ue",
+        "Ä": "ae",
+        "Ö": "oe",
+        "Ü": "ue",
+        "ß": "ss",
+    }
+
+    result = suffix
+    for umlaut, replacement in replacements.items():
+        result = result.replace(umlaut, replacement)
+
+    # Remove any remaining non-ASCII characters
+    result = result.encode("ascii", "ignore").decode("ascii")
+
+    return result
+
+
 def _apply_other_suffix(var_name, is_other_text, is_other_boolean):
     """Apply _other or _other_text suffix to variable name."""
     if is_other_text:
@@ -36,6 +73,9 @@ def _generate_llm_name(
             ]
             prompt_suffix = f" IMPORTANT: Generate a DIFFERENT suffix than these already used: {', '.join(avoid_names)}."
 
+        # Add instruction to avoid umlauts
+        prompt_suffix += " Use only ASCII characters a-z (no umlauts like ä, ö, ü, ß)."
+
         result = generator(
             previous_variable_names=previous_names,
             question_text=question_text + prompt_suffix,
@@ -45,7 +85,11 @@ def _generate_llm_name(
 
         suffix = result.variable_suffix.strip().lstrip("_")
 
-        if not re.match(r"^[a-zäöüß]+$", suffix, re.UNICODE):
+        # Sanitize to remove any umlauts the LLM might have used anyway
+        suffix = _sanitize_suffix(suffix)
+
+        # Validate: only lowercase ASCII letters allowed
+        if not re.match(r"^[a-z]+$", suffix):
             if attempt < max_retries - 1:
                 continue
             else:

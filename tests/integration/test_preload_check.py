@@ -13,8 +13,8 @@ from plumberlama.transitions import preload_check
 
 
 @pytest.fixture
-def test_config():
-    """Create a test configuration for preload checks."""
+def test_config(db_connection):
+    """Create a test configuration for preload checks with test database."""
     return Config(
         survey_id="test_preload_survey",
         lp_poll_id=123,
@@ -24,6 +24,11 @@ def test_config():
         llm_key="test-key",
         llm_base_url="https://test.example.com",
         doc_output_dir="/tmp/test_docs",
+        db_host="localhost",
+        db_port=5433,
+        db_name="test_db",
+        db_user="test_user",
+        db_password="test_password",
     )
 
 

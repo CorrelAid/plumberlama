@@ -20,11 +20,20 @@ ENV UV_LINK_MODE=copy
 # Ensure installed tools can be executed out of the box
 ENV UV_TOOL_BIN_DIR=/usr/local/bin
 
-# Install the package from GitHub
-# Use build arg to allow specifying branch/tag/commit
-ARG GIT_REF=main
+# DEFAULT: Install from local source
+# This Dockerfile is designed for local development where you have the repo cloned.
+# To install from GitHub instead (for deployment without cloning), replace the next two lines with:
+#
+#   ARG GIT_REF=main
+#   RUN --mount=type=cache,target=/root/.cache/uv \
+#       uv pip install --system "plumberlama @ git+https://github.com/CorrelAid/plumberlama.git@${GIT_REF}"
+#
+COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system "plumberlama @ git+https://github.com/CorrelAid/plumberlama.git@${GIT_REF}"
+    uv pip install --system .
+
+# Create directories with correct permissions for nonroot user
+RUN mkdir -p /app/docs /app/site && chown -R nonroot:nonroot /app
 
 # Create run script that executes both commands in sequence
 RUN echo '#!/bin/sh\n\

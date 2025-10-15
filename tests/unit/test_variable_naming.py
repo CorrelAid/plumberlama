@@ -45,6 +45,25 @@ def test_multiple_variables_have_semantic_names(sample_processed_metadata):
             assert not (var_id.startswith("V") and var_id[1:].isdigit())
 
 
+def test_no_umlauts_in_column_names(sample_processed_metadata):
+    """Test that column names do not contain German umlauts or special UTF-8 characters."""
+    metadata_df = sample_processed_metadata.final_metadata_df
+
+    # Check all variable IDs for umlauts
+    forbidden_chars = ["ä", "ö", "ü", "ß", "Ä", "Ö", "Ü"]
+
+    for var_id in metadata_df["id"]:
+        for char in forbidden_chars:
+            assert (
+                char not in var_id
+            ), f"Variable ID '{var_id}' contains forbidden character '{char}'"
+
+        # Also verify only ASCII characters
+        assert (
+            var_id.encode("ascii", "ignore").decode("ascii") == var_id
+        ), f"Variable ID '{var_id}' contains non-ASCII characters"
+
+
 def test_original_id_preserved(sample_processed_metadata):
     """Test that original_id column preserves original variable names."""
     metadata_df = sample_processed_metadata.final_metadata_df

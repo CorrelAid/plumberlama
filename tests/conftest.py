@@ -559,11 +559,18 @@ def multiple_choice_other_subset(variable_naming_test_data):
 
 
 @pytest.fixture(scope="session")
-def docker_compose_test_db():
+def docker_compose_test_db(request):
     """Start PostgreSQL container from docker-compose.test.yml for the test session.
 
     Starts the container once at the beginning of the test session and
     stops it at the end. Uses subprocess to manage docker-compose directly.
+
+    Features:
+    - Supports both 'docker compose' (modern) and 'docker-compose' (legacy)
+    - Waits for PostgreSQL to be ready before yielding
+    - Provides detailed error messages if startup fails
+    - Registers a finalizer to ensure cleanup happens even on test interruption
+    - Removes volumes on teardown for a clean state between test runs
     """
     import subprocess
     import time
@@ -571,20 +578,53 @@ def docker_compose_test_db():
     compose_file = os.path.join(os.path.dirname(__file__), "docker-compose.test.yml")
     project_name = "plumberlama_test"
 
-    # Start docker-compose
-    subprocess.run(
-        ["docker-compose", "-f", compose_file, "-p", project_name, "up", "-d"],
-        check=True,
-        capture_output=True,
-    )
+    # Try modern docker compose first, fall back to docker-compose
+    docker_cmd = ["docker", "compose"]
+    try:
+        subprocess.run(
+            docker_cmd + ["version"],
+            check=True,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        docker_cmd = ["docker-compose"]
+        # Verify docker-compose is available
+        try:
+            subprocess.run(
+                docker_cmd + ["version"],
+                check=True,
+                capture_output=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pytest.fail(
+                "Neither 'docker compose' nor 'docker-compose' command is available. "
+                "Please install Docker and Docker Compose to run integration tests."
+            )
+
+    # Start docker compose
+    try:
+        result = subprocess.run(
+            docker_cmd + ["-f", compose_file, "-p", project_name, "up", "-d"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        pytest.fail(
+            f"Failed to start test database container:\n"
+            f"Command: {' '.join(e.cmd)}\n"
+            f"Exit code: {e.returncode}\n"
+            f"stdout: {e.stdout}\n"
+            f"stderr: {e.stderr}"
+        )
 
     # Wait for PostgreSQL to be ready
     max_attempts = 30
     for attempt in range(max_attempts):
         try:
             result = subprocess.run(
-                [
-                    "docker-compose",
+                docker_cmd
+                + [
                     "-f",
                     compose_file,
                     "-p",
@@ -598,6 +638,7 @@ def docker_compose_test_db():
                 ],
                 capture_output=True,
                 timeout=5,
+                text=True,
             )
             if result.returncode == 0:
                 break
@@ -605,20 +646,60 @@ def docker_compose_test_db():
             pass
         time.sleep(1)
     else:
+        # Get container logs for debugging
+        logs_result = subprocess.run(
+            docker_cmd + ["-f", compose_file, "-p", project_name, "logs", "postgres"],
+            capture_output=True,
+            text=True,
+        )
         # Cleanup on failure
         subprocess.run(
-            ["docker-compose", "-f", compose_file, "-p", project_name, "down", "-v"],
+            docker_cmd + ["-f", compose_file, "-p", project_name, "down", "-v"],
             capture_output=True,
         )
-        pytest.fail("PostgreSQL container failed to become ready")
+        pytest.fail(
+            f"PostgreSQL container failed to become ready after {max_attempts} attempts.\n"
+            f"Container logs:\n{logs_result.stdout}\n{logs_result.stderr}"
+        )
+
+    # Register finalizer to ensure cleanup even if tests are interrupted
+    def cleanup():
+        print("\n[Teardown] Stopping test database container...")
+        try:
+            result = subprocess.run(
+                docker_cmd + ["-f", compose_file, "-p", project_name, "down", "-v"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                print(
+                    f"[Teardown] Warning: Container cleanup had issues:\n{result.stderr}"
+                )
+            else:
+                print("[Teardown] Test database container stopped successfully")
+        except subprocess.TimeoutExpired:
+            print("[Teardown] Warning: Container cleanup timed out")
+            # Force remove containers
+            subprocess.run(
+                docker_cmd
+                + [
+                    "-f",
+                    compose_file,
+                    "-p",
+                    project_name,
+                    "down",
+                    "-v",
+                    "--remove-orphans",
+                ],
+                capture_output=True,
+            )
+        except Exception as e:
+            print(f"[Teardown] Warning: Error during cleanup: {e}")
+
+    request.addfinalizer(cleanup)
 
     yield
-
-    # Cleanup: stop and remove containers
-    subprocess.run(
-        ["docker-compose", "-f", compose_file, "-p", project_name, "down", "-v"],
-        capture_output=True,
-    )
 
 
 @pytest.fixture

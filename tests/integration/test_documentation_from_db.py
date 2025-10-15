@@ -41,7 +41,7 @@ def survey_in_database(
 def test_generate_doc_from_database(survey_in_database, real_config, db_connection):
     """Test complete documentation generation from database."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create config with temporary doc directory
+        # Create config with temporary doc directory and test database settings
         test_config = Config(
             survey_id=survey_in_database,
             lp_poll_id=real_config.lp_poll_id,
@@ -51,6 +51,11 @@ def test_generate_doc_from_database(survey_in_database, real_config, db_connecti
             llm_key=real_config.llm_key,
             llm_base_url=real_config.llm_base_url,
             doc_output_dir=str(Path(tmpdir) / "docs"),
+            db_host="localhost",
+            db_port=5433,
+            db_name="test_db",
+            db_user="test_user",
+            db_password="test_password",
         )
 
         # Generate documentation from database
@@ -78,7 +83,7 @@ def test_generate_doc_with_custom_mkdocs_config(
 ):
     """Test documentation generation with custom MkDocs settings."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create config with custom MkDocs settings
+        # Create config with custom MkDocs settings and test database
         test_config = Config(
             survey_id=survey_in_database,
             lp_poll_id=real_config.lp_poll_id,
@@ -91,6 +96,11 @@ def test_generate_doc_with_custom_mkdocs_config(
             mkdocs_site_name="Custom Survey Name",
             mkdocs_site_author="Test Author",
             mkdocs_repo_url="https://github.com/test/repo",
+            db_host="localhost",
+            db_port=5433,
+            db_name="test_db",
+            db_user="test_user",
+            db_password="test_password",
         )
 
         # Generate documentation
@@ -110,7 +120,7 @@ def test_generate_doc_with_custom_mkdocs_config(
 def test_generate_doc_missing_metadata_fails(real_config, db_connection):
     """Test that generate_doc fails gracefully when metadata table doesn't exist."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create config for non-existent survey
+        # Create config for non-existent survey with test database
         test_config = Config(
             survey_id="nonexistent_survey",
             lp_poll_id=real_config.lp_poll_id,
@@ -120,6 +130,11 @@ def test_generate_doc_missing_metadata_fails(real_config, db_connection):
             llm_key=real_config.llm_key,
             llm_base_url=real_config.llm_base_url,
             doc_output_dir=str(Path(tmpdir) / "docs"),
+            db_host="localhost",
+            db_port=5433,
+            db_name="test_db",
+            db_user="test_user",
+            db_password="test_password",
         )
 
         # Should raise TableNotFoundError when metadata table doesn't exist

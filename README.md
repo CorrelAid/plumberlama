@@ -105,31 +105,28 @@ uv run pytest
 
 ### Developing with Docker
 
-**Important:** The Dockerfile installs plumberlama from GitHub (line 27), not from local source. This means local code changes won't be reflected in the Docker image until pushed to GitHub.
+The Dockerfile installs plumberlama from your local source code by default, so changes are reflected immediately when you rebuild.
 
 **Development workflow:**
 
 1. Make your code changes locally
-2. Test changes
-3. Commit and push to GitHub
-4. Rebuild the Docker image:
+2. Test with `uv run plumberlama etl` and `uv run pytest`
+3. Rebuild and restart Docker:
    ```bash
-   docker compose -f docker-compose.example.yml build --no-cache pipeline
+   docker compose -f docker-compose.example.yml build pipeline
    docker compose -f docker-compose.example.yml up -d
    ```
 
-**Alternative: Local development mode**
+**For deployment without cloning the repo:**
 
-To test Docker changes with local code before pushing, modify the Dockerfile:
+To install from GitHub instead (useful for deployment environments), modify the Dockerfile as shown in the comments (around line 23):
 
 ```dockerfile
-# Replace lines 23-27 with:
-COPY . /app
+# Replace COPY/install lines with:
+ARG GIT_REF=main
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system .
+    uv pip install --system "plumberlama @ git+https://github.com/CorrelAid/plumberlama.git@${GIT_REF}"
 ```
-
-Remember to revert this before committing, as the production Dockerfile should install from GitHub.
 
 ## Project Structure
 
