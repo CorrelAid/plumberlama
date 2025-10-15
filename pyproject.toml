@@ -1,5 +1,5 @@
 [project]
-name = "lama-plumber"
+name = "plumberlama"
 version = "0.1.0"
 description = "Pipeline to generate documentation for surveys and process and load results to a database"
 readme = "README.md"
@@ -10,19 +10,52 @@ dependencies = [
     "polars>=1.33.1",
     "python-dotenv>=1.1.1",
     "requests>=2.32.5",
-    "lib",
     "rich>=14.1.0",
     "pytest>=8.4.2",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
-    "duckdb>=1.1.0",
     "connectorx>=0.4.0",
     "click>=8.1.0",
     "pyarrow>=21.0.0",
+    "pandera>=0.26.1",
+    "datamodel-code-generator>=0.35.0",
+    "email-validator>=2.3.0",
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "pandas>=2.0.0",
+    "adbc-driver-manager>=0.8.0",
+    "adbc-driver-postgresql>=0.8.0",
+    "ruff>=0.14.0",
+    "black>=25.9.0",
+    "pre-commit>=4.3.0",
 ]
 
-[tool.uv.sources]
-lib = { workspace = true }
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.uv.workspace]
-members = ["lib"]
+[tool.black]
+line-length = 88
+target-version = ['py312']
+exclude = '''
+/(
+    src/plumberlama/api_models\.py
+)/
+'''
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]  # Line too long - handled by black
+exclude = ["src/plumberlama/api_models.py"]
+
+
+[tool.ruff.format]
+# Use black-compatible settings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

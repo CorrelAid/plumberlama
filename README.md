@@ -1,17 +1,8 @@
 
-# Todo
-- postgres
-- zeitreihen -> umfragenwellen
-- als cronjob
-- package
-- what happens if variables are added or removed -> workflow for survey waves ->
-- als docker contaienr packagen
-- Tabelle mit label infos
-- workflow aufgeben
-
 # U25 Survey Data Processing Pipeline
 
-Process poll results retrieved from LamaPoll API to simplify self-service data analysis and visualization.
+It's lama with one l! Generate documentation for repeated cross-sectional (i.e. different/anonymous participants) surveys  created with Lamapoll and process results to simplify self-service data analysis and visualization.
+
 
 ## Quick Start
 
@@ -85,7 +76,7 @@ Options:
   --env [DEV|PROD]    Database environment
 ```
 
-## Pipeline 
+## Pipeline
 
 1. Using the `/questions` endpoint for the relevant poll, determine question types
   - LamaPoll has its own question types, but we further distinguish its types
@@ -105,6 +96,16 @@ Options:
 4. We save the processed results and metadata to a database
   - In DEV mode: Uses local DuckDB database (fast, serverless, no setup required)
   - In PROD mode: Configurable for production database (PostgreSQL, etc.)
+
+### Repeated pipeline runs
+
+- in the config, we can specify a survey_id (e.g. u25_survey) for the repeated survey
+  - this can be arbitrarily set and is stable across potentially multiple survey iterations (poll id can be different)
+  - at the beginning of the pipeline, we check if there are already tables in the database
+    - if thats not the case, we create new tables for metadata and results -> we add add a column load_counter = 0 for all result rows
+    - if thats the case, we infer the metadata for the current poll id and then compare the metadata in the db with the new metadata
+      - if different, we raise
+      - if not, we continue with fetching and processing results but append to the existing tables -> we add add a column load_counter = max(load_counter)+1 for all result rows
 
 ## Database Storage
 
@@ -131,7 +132,7 @@ By default, the pipeline uses DuckDB for local development:
 You can query the DuckDB database directly:
 
 ```python
-from lib.database import query_database
+from plumberlama.database import query_database
 
 # Get all results
 results = query_database("SELECT * FROM u25_survey_results")
@@ -182,12 +183,12 @@ uv run mkdocs gh-deploy
 
 - However the API has an endpoint to retrieve V1 compatible legacy results that returns a data where one row equals one participant. This long format allows multivariate methods and is **tidy data**
 
-- **Tidy data**: 
+- **Tidy data**:
   - Every column is a variable.
   - Every row is an observation (one respondent).
   - Every cell holds a single value.
 
-- The Lamapoll data schema contains the entity question, group, varnames, items and labels. 
+- The Lamapoll data schema contains the entity question, group, varnames, items and labels.
   - questions have a type
   - questions can have multiple groups
   - groups can have multiple varnames, multiple items and multiple labels
@@ -206,20 +207,27 @@ uv run mkdocs gh-deploy
     - holds one value per respondent
 
 
-
 # Survey Design Feedback
 - The fact that nothing is mandatory is not ideal (empty reponses possible)
 - there are basically two types of single choice (dropdown and radio buttons where only choice is possible), but they are the same in the data
 - gender is multiple choice (on purpose?)
 
+# Followed Design Patterns/paradigms
+- Functional Programming
+  - declarative programming
+  - using pure functions that have no side effects (memory or I/O)
+  - explicit Data Flow
+- Contract Programming
+  - Pre-Conditions and Post-Conditions
+- Data-Oriented Programming
+  - Separate data from code
+  - Represent data with generic data structures
+  - Data is immutable
+    - Keep Data Immutable
+    - Data never changes after creation
+    - Modifications create new versions
+  - Separate data schema from representation
 
-# Name ideas
 
-- Ceci n'est pas une pipe
-- Lama with one l
-- smoking lama
-- plumber_lama
-- pfeifenlama
-- lama_plumbing
-- pipes of lama
-- 
+ if_exists == "replace" should not be possible. either create or append. maybe rename
+  this variable to something more fitting
