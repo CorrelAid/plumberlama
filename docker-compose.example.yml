@@ -11,10 +11,20 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plumberlama"]
+      test: ["CMD-SHELL", "pg_isready -U plumberlama -d survey_data"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - plumberlama
+
+  # initialize site_output volume with correct permissions for nonroot user (UID 999)
+  init-volume:
+    image: alpine:latest
+    container_name: plumberlama-init-volume
+    volumes:
+      - site_output:/app/site
+    command: sh -c "chown -R 999:999 /app/site && chmod -R 755 /app/site && echo 'Volume permissions set for UID 999'"
     networks:
       - plumberlama
 
@@ -24,6 +34,7 @@ services:
     container_name: plumberlama-pipeline
     env_file:
       - .env
+    user: "999:999"
     environment:
       # Database connection (override if needed)
       DB_HOST: postgres
@@ -32,11 +43,13 @@ services:
       DB_USER: plumberlama
       DB_PASSWORD: plumberlama_dev
       # Output directory - site will be built in /app/site
-      SITE_OUTPUT_DIR: /app/docs
+      SITE_OUTPUT_DIR: /app/site
     volumes:
       # Mount site output directory for web server
       - site_output:/app/site
     depends_on:
+      init-volume:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     networks:

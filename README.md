@@ -38,7 +38,7 @@ busybox httpd -f -vv -p 1102 -h /tmp/site  # Use the SITE_OUTPUT_DIR you configu
 See the example docker compose and Dockerfile for how this could work. The Dockerfile contained in this repository installs the python code from the local source. See the comment in it for how to install from Github repository.
 
 ```bash
-docker-compose -f docker-compose.example.yml up -d
+ docker compose -f docker-compose.example.yml up
 ```
 
 This will:
@@ -169,9 +169,9 @@ flowchart TD
 
 ### Survey Identity & Cross-Sectional Data
 
-- **`SURVEY_ID`**: Stable identifier for your cross-sectional survey. Names database tables (`{survey_id}_metadata`, `{survey_id}_results`)
+- **`SURVEY_ID`**: Stable identifier for the cross-sectional survey. Names database tables (`{survey_id}_metadata`, `{survey_id}_results`)
 - **`LP_POLL_ID`**: LamaPoll poll ID, can change between waves. Data from different polls with identical structure is appended to the same `SURVEY_ID` tables
-- **`load_counter`**: Tracks which wave data came from (0=first load/CREATE, >0=subsequent loads/APPEND)
+- **`load_counter`**: Tracks which waves data came from (0=first load/CREATE, >0=subsequent loads/APPEND)
 
 **Example:** Three yearly waves with different `LP_POLL_ID`s but same `SURVEY_ID=yearly_feedback` → all stored in `yearly_feedback_*` tables with load_counter 0, 1, 2.
 
@@ -200,7 +200,7 @@ See `src/plumberlama/parse_metadata.py` for full inference logic.
 - Declarative style
 
 **Contract Programming:**
-- Preconditions) and postconditions enforced by state validation
+- (Preconditions) and postconditions enforced by state validation
 - Type annotations guarantee correct data flow
 - Pandera schemas enforce DataFrame structure invariants
 

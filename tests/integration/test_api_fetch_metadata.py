@@ -36,6 +36,15 @@ def test_load_poll_metadata_invalid_token(real_config):
         llm_key=real_config.llm_key,
         llm_base_url=real_config.llm_base_url,
         site_output_dir=real_config.site_output_dir,
+        mkdocs_site_name=real_config.mkdocs_site_name,
+        mkdocs_site_author=real_config.mkdocs_site_author,
+        mkdocs_repo_url=real_config.mkdocs_repo_url,
+        mkdocs_logo_url=real_config.mkdocs_logo_url,
+        db_host=real_config.db_host,
+        db_port=real_config.db_port,
+        db_name=real_config.db_name,
+        db_user=real_config.db_user,
+        db_password=real_config.db_password,
     )
 
     with pytest.raises(HTTPError) as exc_info:
@@ -62,6 +71,15 @@ def test_load_poll_metadata_nonexistent_poll(real_config):
         llm_key=real_config.llm_key,
         llm_base_url=real_config.llm_base_url,
         site_output_dir=real_config.site_output_dir,
+        mkdocs_site_name=real_config.mkdocs_site_name,
+        mkdocs_site_author=real_config.mkdocs_site_author,
+        mkdocs_repo_url=real_config.mkdocs_repo_url,
+        mkdocs_logo_url=real_config.mkdocs_logo_url,
+        db_host=real_config.db_host,
+        db_port=real_config.db_port,
+        db_name=real_config.db_name,
+        db_user=real_config.db_user,
+        db_password=real_config.db_password,
     )
 
     with pytest.raises(HTTPError) as exc_info:

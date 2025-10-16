@@ -29,7 +29,7 @@ def test_self_service_get_question_metadata(
 
     # Self-service query: Get all metadata for a specific question
     query = database_queries.get_question_metadata(table_prefix, question_id=5)
-    metadata = query_database(query)
+    metadata = query_database(query, config=test_db_config)
 
     # Verify we got metadata for the question
     assert isinstance(metadata, pl.DataFrame)
@@ -61,7 +61,8 @@ def test_self_service_frequency_analysis(
     # Self-service query: Get frequency distribution for a choice question
     # Find a single_choice variable first
     metadata = query_database(
-        database_queries.find_variable_by_question_type(table_prefix, "single_choice")
+        database_queries.find_variable_by_question_type(table_prefix, "single_choice"),
+        config=test_db_config,
     )
 
     if len(metadata) > 0:
@@ -69,7 +70,7 @@ def test_self_service_frequency_analysis(
 
         # Frequency analysis query
         query = database_queries.get_frequency_distribution(table_prefix, var_name)
-        freq_results = query_database(query)
+        freq_results = query_database(query, config=test_db_config)
 
         assert isinstance(freq_results, pl.DataFrame)
         assert "count" in freq_results.columns
@@ -99,14 +100,15 @@ def test_self_service_time_series_analysis(
     # Self-service query: Analyze trends across waves
     # Get a scale variable
     metadata = query_database(
-        database_queries.find_variable_by_question_type(table_prefix, "scale")
+        database_queries.find_variable_by_question_type(table_prefix, "scale"),
+        config=test_db_config,
     )
 
     if len(metadata) > 0:
         var_name = metadata["id"][0]
 
         query = database_queries.get_time_series_analysis(table_prefix, var_name)
-        timeseries = query_database(query)
+        timeseries = query_database(query, config=test_db_config)
 
         assert isinstance(timeseries, pl.DataFrame)
         assert len(timeseries) == 3  # Three waves
@@ -135,7 +137,7 @@ def test_self_service_matrix_question_analysis(
 
     # Self-service query: Get matrix question data with labels for charting
     query = database_queries.get_matrix_question_metadata(table_prefix)
-    matrix_metadata = query_database(query)
+    matrix_metadata = query_database(query, config=test_db_config)
 
     if len(matrix_metadata) > 0:
         # Verify scale labels are available for visualization
@@ -148,7 +150,7 @@ def test_self_service_matrix_question_analysis(
         results_query = database_queries.get_matrix_question_responses(
             table_prefix, var_name
         )
-        matrix_results = query_database(results_query)
+        matrix_results = query_database(results_query, config=test_db_config)
 
         assert isinstance(matrix_results, pl.DataFrame)
         assert "score" in matrix_results.columns

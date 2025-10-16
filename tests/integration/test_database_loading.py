@@ -50,7 +50,9 @@ def test_load_results_from_database(
     )
 
     # Load results back
-    loaded_results = query_database(f"SELECT * FROM {table_prefix}_results")
+    loaded_results = query_database(
+        f"SELECT * FROM {table_prefix}_results", config=test_db_config
+    )
 
     # Verify data integrity
     assert isinstance(loaded_results, pl.DataFrame)
@@ -78,7 +80,9 @@ def test_load_metadata_from_database(
     )
 
     # Load metadata back
-    loaded_metadata = query_database(f"SELECT * FROM {table_prefix}_metadata")
+    loaded_metadata = query_database(
+        f"SELECT * FROM {table_prefix}_metadata", config=test_db_config
+    )
 
     # Verify data integrity
     assert isinstance(loaded_metadata, pl.DataFrame)
@@ -106,10 +110,14 @@ def test_database_create_behavior(
     )
 
     # Verify data saved
-    loaded_results = query_database(f"SELECT * FROM {table_prefix}_results")
+    loaded_results = query_database(
+        f"SELECT * FROM {table_prefix}_results", config=test_db_config
+    )
     assert len(loaded_results) == len(sample_processed_results.results_df)
 
-    loaded_metadata = query_database(f"SELECT * FROM {table_prefix}_metadata")
+    loaded_metadata = query_database(
+        f"SELECT * FROM {table_prefix}_metadata", config=test_db_config
+    )
     assert len(loaded_metadata) == len(sample_processed_metadata.final_metadata_df)
 
 
@@ -140,7 +148,9 @@ def test_database_append_behavior(
     )
 
     # Verify table has double the rows
-    loaded_results = query_database(f"SELECT * FROM {table_prefix}_results")
+    loaded_results = query_database(
+        f"SELECT * FROM {table_prefix}_results", config=test_db_config
+    )
     assert len(loaded_results) == original_count * 2
 
 
@@ -161,7 +171,8 @@ def test_query_with_filter(
 
     # Query with filter (PostgreSQL converts column names to lowercase by default)
     filtered_results = query_database(
-        f"SELECT * FROM {table_prefix}_results WHERE \"id\" = '1'"
+        f"SELECT * FROM {table_prefix}_results WHERE \"id\" = '1'",
+        config=test_db_config,
     )
 
     # Verify filter worked
@@ -185,7 +196,9 @@ def test_data_types_preserved(
     )
 
     # Load back
-    loaded_results = query_database(f"SELECT * FROM {table_prefix}_results")
+    loaded_results = query_database(
+        f"SELECT * FROM {table_prefix}_results", config=test_db_config
+    )
 
     # Get numeric columns from original (excluding metadata columns)
     numeric_cols = [

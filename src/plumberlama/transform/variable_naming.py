@@ -48,7 +48,7 @@ def _generate_llm_name(
     for attempt in range(max_retries):
 
         result = generator(
-            previous_variable_names=previous_names,
+            reserved_variables_to_avoid=previous_names,
             question_text=question_text,
             variable_text=variable_text,
             lm=lm,
