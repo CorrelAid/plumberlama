@@ -103,29 +103,42 @@ uv run pytest tests/unit/ -s -vv
 ```
 plumberlama/
 ├── src/plumberlama/
-│   ├── cli.py                  # Command-line interface
-│   ├── config.py               # Configuration dataclass
-│   ├── states.py               # Immutable state objects
-│   ├── transitions.py          # State transition functions
-│   ├── validation_schemas.py   # Pandera validation schemas
-│   ├── api_models.py           # Pydantic API models (auto-generated)
-│   ├── parse_metadata.py       # Question parsing and type inference
-│   ├── documentation.py        # MkDocs generation
-│   ├── type_mapping.py         # Polars ↔ String type conversion
+│   ├── cli.py                      # Command-line interface
+│   ├── config.py                   # Configuration dataclass
+│   ├── states.py                   # Immutable state objects
+│   ├── transitions.py              # State transition functions
+│   ├── validation_schemas.py       # Pandera validation schemas
+│   ├── generated_api_models.py     # Pydantic API models (auto-generated)
+│   ├── parse_metadata.py           # Question parsing and type inference
+│   ├── documentation.py            # MkDocs generation
+│   ├── type_mapping.py             # Polars ↔ String type conversion
+│   ├── logging_config.py           # Logging configuration
+│   ├── extract/
+│   │   └── question_type.py        # Question type extraction and inference
 │   ├── transform/
-│   │   ├── cast_types.py       # Type casting
-│   │   ├── decode.py           # Choice decoding
-│   │   ├── llm.py              # LLM integration
-│   │   ├── rename_results_columns.py
-│   │   └── variable_naming.py  # Semantic naming
+│   │   ├── cast_types.py           # Type casting
+│   │   ├── decode.py               # Choice decoding
+│   │   ├── llm.py                  # LLM integration
+│   │   ├── rename_results_columns.py # Column renaming
+│   │   └── variable_naming.py      # Semantic variable naming
 │   └── io/
-│       ├── api.py              # API client
-│       └── database.py         # Database operations
+│       ├── api.py                  # LamaPoll API client
+│       ├── database.py             # Database operations
+│       └── database_queries.py     # SQL query templates
+├── scripts/
+│   ├── generate_api_models.py      # Generate Pydantic models from OpenAPI
+│   └── query_db.py                 # Database query utility
+├── notebooks/
+│   └── exploration.ipynb           # Exploratory analysis
 ├── tests/
-│   ├── unit/               # Unit tests
-│   ├── integration/        # Integration tests
-│   └── e2e/                # End-to-end tests
-└── docs/                   # Generated documentation
+│   ├── unit/                       # Unit tests
+│   ├── integration/                # Integration tests
+│   ├── e2e/                        # End-to-end tests
+│   ├── conftest.py                 # Pytest configuration
+│   └── docker-compose.test.yml     # Test database setup
+├── docker-compose.example.yml      # Example deployment setup
+├── Dockerfile                      # Container image definition
+└── pyproject.toml                  # Project dependencies and metadata
 ```
 
 ## How It Works
