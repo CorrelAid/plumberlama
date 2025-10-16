@@ -220,3 +220,18 @@ See `src/plumberlama/parse_metadata.py` for full inference logic.
 - Generic data structures (DataFrames) over custom classes
 - Immutable by default
 - Schema separated from representation
+
+## Querying the Database
+
+After running the ETL pipeline, you can query the PostgreSQL database using predefined query functions:
+
+```bash
+# List available query functions
+uv run plumberlama query --list
+
+# Use query functions (table_prefix automatically set from SURVEY_ID in .env)
+uv run plumberlama query get_question_metadata  27937539
+uv run plumberlama query get_frequency_distribution Q5
+```
+
+The command automatically loads database credentials and survey ID from your `.env` file. See `src/plumberlama/io/database_queries.py` for all available query functions.
