@@ -128,8 +128,6 @@ plumberlama/
 ├── scripts/
 │   ├── generate_api_models.py      # Generate Pydantic models from OpenAPI
 │   └── query_db.py                 # Database query utility
-├── notebooks/
-│   └── exploration.ipynb           # Exploratory analysis
 ├── tests/
 │   ├── unit/                       # Unit tests
 │   ├── integration/                # Integration tests
