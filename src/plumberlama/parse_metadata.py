@@ -1,7 +1,10 @@
 import polars as pl
+from rich.console import Console
 
 from plumberlama.generated_api_models import Questions
 from plumberlama.type_mapping import polars_to_string
+
+console = Console()
 
 
 def parse_question(question: Questions, absolute_position: int, page_number: int):
@@ -36,6 +39,7 @@ def parse_question(question: Questions, absolute_position: int, page_number: int
             "scale_labels": None,
             "is_other_boolean": False,
             "is_other_text": False,
+            "validation_warning": None,
         }
         return {
             "question_id": question_id,
@@ -108,8 +112,8 @@ def parse_question(question: Questions, absolute_position: int, page_number: int
 
             # Extract range information for matrix questions
             if group.range and len(group.range) >= 2:
-                range_min = group.range[0]
-                range_max = group.range[1]
+                range_min = int(group.range[0])
+                range_max = int(group.range[1])
             elif labels and len(labels) > 0:
                 # Assume labels represent 1 to N scale
                 range_min = 1
@@ -191,14 +195,54 @@ def parse_question(question: Questions, absolute_position: int, page_number: int
                     question_type = "multiple_choice"
                     varnames = group.varnames
                     labels = group.labels
+
+                    # Check for "other" labels that might indicate misconfiguration
+                    # Only warn if the label starts with or is primarily these keywords
+                    other_patterns = [
+                        "sonstiges:",
+                        "sonstiges ",
+                        "anderes:",
+                        "anderes ",
+                        "andere:",
+                        "andere ",
+                        "other:",
+                        "other ",
+                    ]
+
                     for idx, varname in enumerate(varnames):
                         label_text = ""
+                        warning_msg = None
+
                         if idx < len(labels):
                             label = labels[idx]
                             if label:
                                 label_text = label.get("de", "")
+
+                                # Check if this label indicates missing text field
+                                label_lower = label_text.lower().strip()
+                                if any(
+                                    label_lower.startswith(pattern)
+                                    for pattern in other_patterns
+                                ):
+                                    warning_msg = (
+                                        f"Missing text input field for '{label_text}' option. "
+                                        f"Should be configured as 'multiple_choice_other' with 2 groups."
+                                    )
+
+                                    # Display warning using rich
+                                    console.print(
+                                        f"[yellow]⚠️  Warning:[/yellow] Question {question_id}: {question.question.get('de', '')}\n"
+                                        f"   Variable [cyan]{varname}[/cyan] has '{label_text}' but no text field.\n"
+                                        f"   [dim]Suggestion: Configure as multiple_choice_other in LamaPoll[/dim]"
+                                    )
+
                         variables.append(
-                            make_var(varname, pl.Boolean, label=label_text)
+                            make_var(
+                                varname,
+                                pl.Boolean,
+                                label=label_text,
+                                validation_warning=warning_msg,
+                            )
                         )
 
         case ("CHOICE", 2):
@@ -271,8 +315,8 @@ def parse_question(question: Questions, absolute_position: int, page_number: int
             group = groups[0]
             assert group.range is not None
             question_type = "scale"
-            range_min = group.range[0] if len(group.range) > 0 else None
-            range_max = group.range[1] if len(group.range) > 1 else None
+            range_min = int(group.range[0]) if len(group.range) > 0 else None
+            range_max = int(group.range[1]) if len(group.range) > 1 else None
 
             variables.append(
                 make_var(

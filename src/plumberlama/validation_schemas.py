@@ -21,13 +21,14 @@ class ParsedMetadataSchema(pa.DataFrameModel):
     )
     question_text: str
     label: str = pa.Field(nullable=True)
-    range_min: float = pa.Field(nullable=True)
-    range_max: float = pa.Field(nullable=True)
+    range_min: int = pa.Field(nullable=True)
+    range_max: int = pa.Field(nullable=True)
     possible_values_codes: pl.List(pl.String) = pa.Field(nullable=True)
     possible_values_labels: pl.List(pl.String) = pa.Field(nullable=True)
     scale_labels: pl.List(pl.String) = pa.Field(nullable=True)
     is_other_boolean: bool
     is_other_text: bool
+    validation_warning: str = pa.Field(nullable=True, coerce=True)
 
 
 class ProcessedMetadataSchema(ParsedMetadataSchema):

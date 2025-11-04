@@ -216,3 +216,60 @@ def test_data_types_preserved(
                 pl.Int32,
                 pl.Float32,
             ], f"Column {col} should be numeric but is {loaded_results[col].dtype}"
+
+
+def test_append_uses_existing_column_names(
+    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
+):
+    """Test that append mode uses existing database column names, not newly generated ones.
+
+    This addresses issue #10: When appending data, we should use the existing
+    variable names from the database, not create new ones (which would cause
+    a "column does not exist" error).
+    """
+    table_prefix = "test_append_column_names"
+
+    # First load: Save with original column names
+    save_to_database(
+        results_df=sample_processed_results.results_df,
+        metadata_df=sample_processed_metadata.final_metadata_df,
+        table_prefix=table_prefix,
+        append=False,
+        config=test_db_config,
+    )
+
+    # Get the columns from first load
+    first_load_results = query_database(
+        f"SELECT * FROM {table_prefix}_results", config=test_db_config
+    )
+    first_load_columns = set(first_load_results.columns)
+
+    # Second load: Append should use existing table schema
+    # Even if the DataFrame has the same columns, append=True should
+    # use the reflected table schema, not create new columns
+    save_to_database(
+        results_df=sample_processed_results.results_df,
+        metadata_df=sample_processed_metadata.final_metadata_df,
+        table_prefix=table_prefix,
+        append=True,
+        config=test_db_config,
+    )
+
+    # Verify appended data
+    second_load_results = query_database(
+        f"SELECT * FROM {table_prefix}_results", config=test_db_config
+    )
+    second_load_columns = set(second_load_results.columns)
+
+    # Column names should remain the same
+    assert first_load_columns == second_load_columns
+
+    # Should have double the rows
+    assert len(second_load_results) == len(sample_processed_results.results_df) * 2
+
+    # Metadata should not have been duplicated (append mode doesn't insert metadata)
+    loaded_metadata = query_database(
+        f"SELECT * FROM {table_prefix}_metadata", config=test_db_config
+    )
+    # Should still have same number of rows as original metadata
+    assert len(loaded_metadata) == len(sample_processed_metadata.final_metadata_df)

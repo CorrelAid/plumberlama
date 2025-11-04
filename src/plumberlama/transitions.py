@@ -138,9 +138,17 @@ def process_poll_metadata(
 
 
 def preload_check(
-    config: Config, new_metadata: ProcessedMetadataState
+    config: Config, new_metadata: ParsedMetadataState
 ) -> PreloadCheckState:
-    """Check if tables exist and validate metadata consistency."""
+    """Check if tables exist and validate metadata consistency.
+
+    Args:
+        config: Configuration object
+        new_metadata: Parsed metadata state (with original variable IDs, before LLM processing)
+
+    Returns:
+        PreloadCheckState with load_counter and existing_metadata_df if appending
+    """
 
     logger.info("Validating metadata...")
     try:
@@ -158,18 +166,25 @@ def preload_check(
         ):
             # Tables don't exist - first load
             logger.info("✓ No existing tables found - first load detected")
-            logger.info("  → load_counter=0: Will CREATE new tables")
+            logger.info("  → load_counter=0: Will CREATE new tables with LLM naming")
             return PreloadCheckState(load_counter=0)
         else:
             # Some other error - re-raise
             raise
     try:
-        # Only check original_id and question_type - renamed 'id' can change
+        # Compare parsed metadata (id field) with existing database metadata (original_id field)
+        # The database has processed metadata with original_id, we have parsed metadata with id
+        # Rename existing original_id to id for comparison
+        existing_comparison = existing_df.sort("original_id").select(
+            [pl.col("original_id").alias("id"), "question_type"]
+        )
+        new_comparison = new_metadata.parsed_metadata_df.sort("id").select(
+            ["id", "question_type"]
+        )
+
         assert_frame_equal(
-            existing_df.sort("original_id").select(["original_id", "question_type"]),
-            new_metadata.final_metadata_df.sort("original_id").select(
-                ["original_id", "question_type"]
-            ),
+            existing_comparison,
+            new_comparison,
             check_row_order=True,
             check_column_order=False,
         )
@@ -205,7 +220,10 @@ def preload_check(
     logger.info(
         f"  → load_counter={load_counter}: Will APPEND new results to existing data"
     )
-    return PreloadCheckState(load_counter=load_counter)
+    logger.info("  → Using existing variable names from database for consistency")
+    return PreloadCheckState(
+        load_counter=load_counter, existing_metadata_df=existing_df
+    )
 
 
 def fetch_poll_results(config: Config) -> FetchedResultsState:
@@ -224,9 +242,18 @@ def fetch_poll_results(config: Config) -> FetchedResultsState:
 
 
 def process_poll_results(
-    processed_metadata: ProcessedMetadataState, fetched_results: FetchedResultsState
+    processed_metadata: ProcessedMetadataState,
+    fetched_results: FetchedResultsState,
+    existing_metadata_df: pl.DataFrame = None,
 ) -> ProcessedResultsState:
-    """Process poll results"""
+    """Process poll results.
+
+    Args:
+        processed_metadata: Newly processed metadata with LLM-generated names (None for append mode)
+        fetched_results: Raw results from API
+        existing_metadata_df: Existing metadata from DB (for append mode).
+                             If provided, uses these variable names instead of new ones.
+    """
     logger.info("Processing results...")
 
     # Filter out incomplete and empty responses
@@ -238,27 +265,37 @@ def process_poll_results(
     # Drop unused metadata columns
     results_df = results_df.drop(["vANONYM", "vLANG"])
 
+    # Determine which metadata to use
+    if existing_metadata_df is not None:
+        # Append mode: Use existing database metadata
+        metadata_for_naming = existing_metadata_df
+        # Create schema from existing metadata
+        processed_results_schema = make_results_schema(existing_metadata_df)
+    else:
+        # First load: Use newly processed metadata
+        assert (
+            processed_metadata is not None
+        ), "processed_metadata required when not appending"
+        metadata_for_naming = processed_metadata.final_metadata_df
+        processed_results_schema = processed_metadata.processed_results_schema
+
     # Rename all columns using variable metadata
-    results_df = rename_results_columns(
-        results_df, processed_metadata.final_metadata_df
-    )
+    results_df = rename_results_columns(results_df, metadata_for_naming)
 
     # Decode single choice (converts codes to labels)
     results_df = decode_single_choice(
-        processed_metadata.processed_results_schema,
+        processed_results_schema,
         results_df,
-        processed_metadata.final_metadata_df,
+        metadata_for_naming,
     )
 
     # Cast columns to expected types
-    results_df = cast_results_to_schema(
-        results_df, processed_metadata.processed_results_schema
-    )
+    results_df = cast_results_to_schema(results_df, processed_results_schema)
 
     logger.info(f"   ✓ Processed {len(results_df)} responses")
     return ProcessedResultsState(
         results_df=results_df,
-        processed_results_schema=processed_metadata.processed_results_schema,
+        processed_results_schema=processed_results_schema,
     )
 
 

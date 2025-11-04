@@ -40,25 +40,34 @@ def save_to_database(
     results_table_name = f"{table_prefix}_results"
     metadata_table_name = f"{table_prefix}_metadata"
 
-    # Create table schemas from DataFrames
-    results_table = _create_table_from_dataframe(
-        results_df, results_table_name, db_metadata
-    )
-    metadata_table = _create_table_from_dataframe(
-        metadata_df, metadata_table_name, db_metadata
-    )
-
     with engine.begin() as conn:
-        # Create tables if they don't exist (or fail if append=False and they exist)
-        if not append:
+        if append:
+            # Reflect existing tables from database
+            db_metadata.reflect(conn, only=[results_table_name, metadata_table_name])
+            results_table = db_metadata.tables[results_table_name]
+            # metadata_table only needed for verification, not insertion
+            metadata_table = db_metadata.tables[metadata_table_name]
+
+            # Only insert results when appending (metadata already exists)
+            results_records = results_df.to_dicts()
+            conn.execute(results_table.insert(), results_records)
+        else:
+            # Create table schemas from DataFrames
+            results_table = _create_table_from_dataframe(
+                results_df, results_table_name, db_metadata
+            )
+            metadata_table = _create_table_from_dataframe(
+                metadata_df, metadata_table_name, db_metadata
+            )
             # Create tables, fail if they already exist
             db_metadata.create_all(conn, tables=[results_table, metadata_table])
 
-        results_records = results_df.to_dicts()
-        conn.execute(results_table.insert(), results_records)
+            # Insert both results and metadata for first load
+            results_records = results_df.to_dicts()
+            conn.execute(results_table.insert(), results_records)
 
-        metadata_records = metadata_df.to_dicts()
-        conn.execute(metadata_table.insert(), metadata_records)
+            metadata_records = metadata_df.to_dicts()
+            conn.execute(metadata_table.insert(), metadata_records)
 
     # Log confirmation
     db_host = os.getenv("DB_HOST", "localhost")

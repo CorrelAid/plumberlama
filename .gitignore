@@ -24,3 +24,5 @@ data/
 *.duckdb.wal
 
 cache/openapi.json
+
+notebooks/*

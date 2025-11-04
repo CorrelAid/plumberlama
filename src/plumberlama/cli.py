@@ -49,27 +49,46 @@ def load_config_from_env() -> Config:
 
 
 def run_etl_pipeline() -> LoadedState:
-    """Run complete ETL pipeline: Fetch → Parse → Process → Validate → Load."""
+    """Run complete ETL pipeline: Fetch → Parse → Validate → Process (if first load) → Load."""
     config = load_config_from_env()
 
     logger.info("=" * 60)
     logger.info(f"Starting ETL Pipeline for survey: {config.survey_id}")
     logger.info("=" * 60)
 
-    current_metadata = process_poll_metadata(
-        parse_poll_metadata(fetch_poll_metadata(config)), config
-    )
+    # Fetch and parse metadata
+    parsed_metadata = parse_poll_metadata(fetch_poll_metadata(config))
 
+    # Check if we need to create tables or append
     try:
-        validated_metadata = preload_check(config, current_metadata)
+        validated_metadata = preload_check(config, parsed_metadata)
     except MetadataMismatchError:
         logger.error("Pipeline aborted due to preload check failure")
         raise
 
-    results = process_poll_results(current_metadata, fetch_poll_results(config))
+    # Only run LLM processing on first load (load_counter == 0)
+    # For subsequent loads, use existing processed metadata from database
+    if validated_metadata.load_counter == 0:
+        # First load: Process metadata with LLM variable naming
+        processed_metadata = process_poll_metadata(parsed_metadata, config)
+        metadata_for_results = processed_metadata
+    else:
+        # Subsequent loads: Use existing metadata from database
+        processed_metadata = None
+        metadata_for_results = (
+            None  # Will use existing_metadata_df from validated_metadata
+        )
 
+    # Process results using appropriate metadata
+    results = process_poll_results(
+        metadata_for_results,
+        fetch_poll_results(config),
+        existing_metadata_df=validated_metadata.existing_metadata_df,
+    )
+
+    # Load data (metadata only inserted on first load)
     loaded_state = load_data(
-        results, validated_metadata, config, meta_state=current_metadata
+        results, validated_metadata, config, meta_state=processed_metadata
     )
 
     logger.info("=" * 60)

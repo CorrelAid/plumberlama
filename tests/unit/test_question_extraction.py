@@ -291,3 +291,126 @@ def test_scale_with_range(scale_question):
     assert variables[0]["range_min"] == 1
     assert variables[0]["range_max"] == 5
     assert variables[0]["schema_variable_type"] == "Int64"
+
+
+def test_scale_with_float_range_converts_to_int():
+    """Test that scale question converts float range values to integers (issue #11)."""
+    scale_question_float = {
+        "id": 27937507,
+        "pollId": 123,
+        "type": "SCALE",
+        "question": {
+            "de": "Ich habe Bedenken, ob ich den Anforderungen gerecht werden kann."
+        },
+        "position": 6,
+        "pageId": 1,
+        "groups": [
+            {
+                "id": 0,
+                "name": {},
+                "varnames": ["Q4_bedenken"],
+                "labels": [],
+                "codes": [],
+                "range": [1.0, 6.0, 1.0],  # API returns floats
+                "items": [],
+            }
+        ],
+    }
+
+    question = Questions(**scale_question_float)
+    question_dict, variables = parse_question(
+        question, absolute_position=1, page_number=1
+    )
+
+    assert question_dict["question_type"] == "scale"
+    assert len(variables) == 1
+    assert variables[0]["range_min"] == 1
+    assert variables[0]["range_max"] == 6
+    # Verify types are int, not float
+    assert isinstance(variables[0]["range_min"], int)
+    assert isinstance(variables[0]["range_max"], int)
+    assert variables[0]["schema_variable_type"] == "Int64"
+
+
+def test_matrix_with_float_range_converts_to_int():
+    """Test that matrix question converts float range values to integers (issue #11)."""
+    matrix_question_float = {
+        "id": 27937510,
+        "pollId": 123,
+        "type": "MATRIX",
+        "question": {"de": "Matrix with float range"},
+        "position": 7,
+        "pageId": 1,
+        "groups": [
+            {
+                "id": 0,
+                "name": {},
+                "varnames": ["V20", "V21"],
+                "labels": [{"de": "Label 1"}, {"de": "Label 2"}],
+                "codes": [],
+                "items": [
+                    {"id": "1", "name": {"de": "Row 1"}},
+                    {"id": "2", "name": {"de": "Row 2"}},
+                ],
+                "range": [1.0, 5.0, 1.0],  # API returns floats
+            }
+        ],
+    }
+
+    question = Questions(**matrix_question_float)
+    question_dict, variables = parse_question(
+        question, absolute_position=1, page_number=1
+    )
+
+    assert question_dict["question_type"] == "matrix"
+    assert len(variables) == 2
+    for var in variables:
+        assert var["range_min"] == 1
+        assert var["range_max"] == 5
+        # Verify types are int, not float
+        assert isinstance(var["range_min"], int)
+        assert isinstance(var["range_max"], int)
+        assert var["schema_variable_type"] == "Int64"
+
+
+def test_multiple_choice_with_sonstiges_warns(multiple_choice_question):
+    """Test that multiple_choice with 'Sonstiges:' label triggers a warning (issue #12)."""
+    # Add a "Sonstiges:" label to the multiple choice question
+    multiple_choice_question["groups"][0]["labels"].append({"de": "Sonstiges:"})
+    multiple_choice_question["groups"][0]["varnames"].append("V9")
+
+    question = Questions(**multiple_choice_question)
+    question_dict, variables = parse_question(
+        question, absolute_position=1, page_number=1
+    )
+
+    # Question should still be parsed as multiple_choice (not fail)
+    assert question_dict["question_type"] == "multiple_choice"
+    assert len(variables) == 4  # Original 3 + Sonstiges
+
+    # Check that the Sonstiges variable has a validation warning
+    sonstiges_var = [v for v in variables if v["id"] == "V9"][0]
+    assert sonstiges_var["validation_warning"] is not None
+    assert "Sonstiges:" in sonstiges_var["validation_warning"]
+    assert "text input field" in sonstiges_var["validation_warning"]
+
+
+def test_multiple_choice_with_andere_in_text_no_warning(multiple_choice_question):
+    """Test that 'andere' in the middle of text doesn't trigger warning (issue #12)."""
+    # Add a label that contains "andere" but not at the start
+    multiple_choice_question["groups"][0]["labels"].append(
+        {"de": "Eine andere Person hat mich mitgenommen"}
+    )
+    multiple_choice_question["groups"][0]["varnames"].append("V9")
+
+    question = Questions(**multiple_choice_question)
+    question_dict, variables = parse_question(
+        question, absolute_position=1, page_number=1
+    )
+
+    assert question_dict["question_type"] == "multiple_choice"
+    assert len(variables) == 4
+
+    # Check that the variable does NOT have a validation warning
+    andere_var = [v for v in variables if v["id"] == "V9"][0]
+    assert andere_var["validation_warning"] is None

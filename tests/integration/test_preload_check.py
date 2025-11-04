@@ -12,20 +12,24 @@ from plumberlama.transitions import preload_check
 
 
 def test_preload_check_no_existing_tables(
-    test_db_config, sample_processed_metadata, db_connection
+    test_db_config, sample_parsed_metadata, db_connection
 ):
     """Test preload check when no tables exist (first load)."""
     # Ensure tables don't exist by using a unique survey ID
     test_db_config.survey_id = "test_preload_first_load"
 
-    result = preload_check(test_db_config, sample_processed_metadata)
+    result = preload_check(test_db_config, sample_parsed_metadata)
 
     assert isinstance(result, PreloadCheckState)
     assert result.load_counter == 0
 
 
 def test_preload_check_matching_metadata(
-    test_db_config, sample_processed_metadata, sample_processed_results, db_connection
+    test_db_config,
+    sample_parsed_metadata,
+    sample_processed_metadata,
+    sample_processed_results,
+    db_connection,
 ):
     """Test preload check when existing metadata matches current metadata."""
     import polars as pl
@@ -37,7 +41,7 @@ def test_preload_check_matching_metadata(
         pl.lit(0).alias("load_counter")
     )
 
-    # Save initial data to database
+    # Save initial data to database (with processed metadata from first load)
     save_to_database(
         results_df=results_with_counter,
         metadata_df=sample_processed_metadata.final_metadata_df,
@@ -46,20 +50,23 @@ def test_preload_check_matching_metadata(
         config=test_db_config,
     )
 
-    # Validate metadata matches
-    result = preload_check(test_db_config, sample_processed_metadata)
+    # Validate metadata matches (using parsed metadata, simulating second load)
+    result = preload_check(test_db_config, sample_parsed_metadata)
 
     assert isinstance(result, PreloadCheckState)
     assert result.load_counter > 0
 
 
 def test_preload_check_mismatched_variable_count(
-    test_db_config, sample_processed_metadata, db_connection
+    test_db_config,
+    sample_parsed_metadata,
+    sample_processed_metadata,
+    db_connection,
 ):
     """Test preload check fails when variable count differs."""
     test_db_config.survey_id = "test_preload_count_mismatch"
 
-    # Save original metadata
+    # Save original processed metadata (from first load)
     save_to_database(
         results_df=sample_processed_metadata.final_metadata_df.head(
             1
@@ -70,13 +77,11 @@ def test_preload_check_mismatched_variable_count(
         config=test_db_config,
     )
 
-    # Try to validate with fewer variables
-    # Create new state with modified metadata
-    from plumberlama.states import ProcessedMetadataState
+    # Try to validate with fewer variables (simulating second load with different structure)
+    from plumberlama.states import ParsedMetadataState
 
-    modified_metadata = ProcessedMetadataState(
-        final_metadata_df=sample_processed_metadata.final_metadata_df.head(10),
-        processed_results_schema=sample_processed_metadata.processed_results_schema,
+    modified_metadata = ParsedMetadataState(
+        parsed_metadata_df=sample_parsed_metadata.parsed_metadata_df.head(10),
     )
 
     from plumberlama.transitions import MetadataMismatchError
@@ -86,14 +91,17 @@ def test_preload_check_mismatched_variable_count(
 
 
 def test_preload_check_mismatched_variable_ids(
-    test_db_config, sample_processed_metadata, db_connection
+    test_db_config,
+    sample_parsed_metadata,
+    sample_processed_metadata,
+    db_connection,
 ):
     """Test preload check fails when variable IDs differ."""
     import polars as pl
 
     test_db_config.survey_id = "test_preload_id_mismatch"
 
-    # Save original metadata
+    # Save original processed metadata (from first load)
     save_to_database(
         results_df=sample_processed_metadata.final_metadata_df.head(
             1
@@ -104,23 +112,20 @@ def test_preload_check_mismatched_variable_ids(
         config=test_db_config,
     )
 
-    # Modify metadata by changing one original_id
-    from plumberlama.states import ProcessedMetadataState
+    # Modify parsed metadata by changing one variable ID (simulating different survey structure)
+    from plumberlama.states import ParsedMetadataState
 
-    modified_df = sample_processed_metadata.final_metadata_df.clone()
-    first_original_id = modified_df["original_id"][0]
+    modified_df = sample_parsed_metadata.parsed_metadata_df.clone()
+    first_id = modified_df["id"][0]
 
     modified_df = modified_df.with_columns(
-        pl.when(pl.col("original_id") == first_original_id)
+        pl.when(pl.col("id") == first_id)
         .then(pl.lit("CHANGED_ID"))
-        .otherwise(pl.col("original_id"))
-        .alias("original_id")
+        .otherwise(pl.col("id"))
+        .alias("id")
     )
 
-    modified_metadata = ProcessedMetadataState(
-        final_metadata_df=modified_df,
-        processed_results_schema=sample_processed_metadata.processed_results_schema,
-    )
+    modified_metadata = ParsedMetadataState(parsed_metadata_df=modified_df)
 
     from plumberlama.transitions import MetadataMismatchError
 
@@ -129,14 +134,17 @@ def test_preload_check_mismatched_variable_ids(
 
 
 def test_preload_check_mismatched_question_types(
-    test_db_config, sample_processed_metadata, db_connection
+    test_db_config,
+    sample_parsed_metadata,
+    sample_processed_metadata,
+    db_connection,
 ):
     """Test preload check fails when question types differ."""
     import polars as pl
 
     test_db_config.survey_id = "test_preload_type_mismatch"
 
-    # Save original metadata
+    # Save original processed metadata (from first load)
     save_to_database(
         results_df=sample_processed_metadata.final_metadata_df.head(
             1
@@ -147,10 +155,10 @@ def test_preload_check_mismatched_question_types(
         config=test_db_config,
     )
 
-    # Modify metadata by changing a question type
-    from plumberlama.states import ProcessedMetadataState
+    # Modify parsed metadata by changing a question type (simulating different survey structure)
+    from plumberlama.states import ParsedMetadataState
 
-    modified_df = sample_processed_metadata.final_metadata_df.clone()
+    modified_df = sample_parsed_metadata.parsed_metadata_df.clone()
 
     modified_df = modified_df.with_columns(
         pl.when(pl.col("question_type") == "input_single_singleline")
@@ -159,10 +167,7 @@ def test_preload_check_mismatched_question_types(
         .alias("question_type")
     )
 
-    modified_metadata = ProcessedMetadataState(
-        final_metadata_df=modified_df,
-        processed_results_schema=sample_processed_metadata.processed_results_schema,
-    )
+    modified_metadata = ParsedMetadataState(parsed_metadata_df=modified_df)
 
     from plumberlama.transitions import MetadataMismatchError
 
@@ -171,12 +176,15 @@ def test_preload_check_mismatched_question_types(
 
 
 def test_preload_check_renamed_variables_allowed(
-    test_db_config, sample_processed_metadata, db_connection
+    test_db_config,
+    sample_parsed_metadata,
+    sample_processed_metadata,
+    db_connection,
 ):
-    """Test that preload check allows changes to renamed variable IDs.
+    """Test that preload check allows the same survey structure.
 
-    The 'id' column (renamed variables) can change between loads,
-    only original_id and question_type must match.
+    Since we now compare parsed metadata (id) with database metadata (original_id),
+    the comparison checks the raw survey structure (before LLM renaming).
     """
     import polars as pl
 
@@ -187,7 +195,7 @@ def test_preload_check_renamed_variables_allowed(
         pl.lit(0).alias("load_counter")
     )
 
-    # Save original metadata
+    # Save original processed metadata (from first load)
     save_to_database(
         results_df=dummy_results,
         metadata_df=sample_processed_metadata.final_metadata_df,
@@ -196,24 +204,7 @@ def test_preload_check_renamed_variables_allowed(
         config=test_db_config,
     )
 
-    # Modify only the renamed 'id' column (should still pass)
-    from plumberlama.states import ProcessedMetadataState
-
-    modified_df = sample_processed_metadata.final_metadata_df.clone()
-    first_id = modified_df["id"][0]
-
-    modified_df = modified_df.with_columns(
-        pl.when(pl.col("id") == first_id)
-        .then(pl.lit("new_renamed_id"))
-        .otherwise(pl.col("id"))
-        .alias("id")
-    )
-
-    modified_metadata = ProcessedMetadataState(
-        final_metadata_df=modified_df,
-        processed_results_schema=sample_processed_metadata.processed_results_schema,
-    )
-
-    # This should pass because we only check original_id and question_type
-    result = preload_check(test_db_config, modified_metadata)
+    # Second load with same parsed metadata (simulates LLM might generate different names)
+    # This should pass because we compare parsed.id with database.original_id
+    result = preload_check(test_db_config, sample_parsed_metadata)
     assert isinstance(result, PreloadCheckState)

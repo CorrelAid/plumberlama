@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import pandera.polars as pa
 import polars as pl
@@ -123,10 +124,18 @@ class PreloadCheckState:
     """State after checking database and validating metadata before load."""
 
     load_counter: int
+    existing_metadata_df: Optional[pl.DataFrame] = (
+        None  # Metadata from DB (None for first load)
+    )
 
     def __post_init__(self):
         assert isinstance(self.load_counter, int)
         assert self.load_counter >= 0
+        # If load_counter > 0 (append), existing_metadata_df must be provided
+        if self.load_counter > 0:
+            assert (
+                self.existing_metadata_df is not None
+            ), "existing_metadata_df required when load_counter > 0"
 
 
 @dataclass(frozen=True)

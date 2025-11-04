@@ -1,6 +1,6 @@
 # plumberlama
 
-It's lama with one l! Generate documentation for repeated cross-sectional surveys (anonymous participants) created with LamaPoll and process results to simplify self-service data analysis and visualization. 
+It's lama with one l! Generate documentation for repeated cross-sectional surveys (anonymous participants) created with LamaPoll and process results to simplify self-service data analysis and visualization.
 
 ## Deployment
 
@@ -9,19 +9,14 @@ It's lama with one l! Generate documentation for repeated cross-sectional survey
 Install plumberlama as a Python package, for example in a uv project:
 
 ```bash
-# From GitHub
 uv pip install "git+https://github.com/correlaid/plumberlama.git"
 
-# Create .env file with configuration (see Configuration section below), then set environment with
 set -a && source .env && set +a
 
-#Optionally start a local database
 docker compose -f docker-compose.example.yml up -d postgres
 
-# Run the etl pipeline (requires a database)
 uv run plumberlama etl
 
-# Generate documentation (requires metadata to be loaded to database)
 uv run plumberlama docs
 ```
 
@@ -29,7 +24,7 @@ You can then serve the generated site, for example with the following command (r
 
 ```bash
 busybox httpd -f -vv -p 1102 -h /tmp/site  # Use the SITE_OUTPUT_DIR you configured
-#see localhost:1102
+
 ```
 
 
@@ -152,17 +147,18 @@ flowchart TD
     Config --> FetchMeta["Fetch Metadata<br/><small>from LP_POLL_ID</small>"]
 
     FetchMeta --> ParseMeta[Parse Metadata<br/>Extract Variables]
-    ParseMeta --> ProcessMeta[Process Metadata<br/>Variable Renaming etc.]
 
-    ProcessMeta --> PreloadCheck{"Preload Check<br/><small>Query {SURVEY_ID}_metadata</small>"}
+    ParseMeta --> PreloadCheck{"Preload Check<br/><small>Compare with {SURVEY_ID}_metadata</small>"}
 
-    PreloadCheck -->|"✓ No tables<br/>load_counter=0<br/>CREATE"| FetchResults["Fetch Results<br/><small>from LP_POLL_ID</small>"]
-    PreloadCheck -->|"✓ Match<br/>load_counter>0<br/>APPEND"| FetchResults
+    PreloadCheck -->|"✓ No tables<br/>load_counter=0<br/>CREATE"| ProcessMeta["Process Metadata<br/><small>LLM Variable Naming</small>"]
+    PreloadCheck -->|"✓ Match<br/>load_counter>0<br/>APPEND<br/><small>+ existing_metadata_df</small>"| FetchResults["Fetch Results<br/><small>from LP_POLL_ID</small>"]
     PreloadCheck -->|"✗ Mismatch<br/>STOP"| Stop["❌ Aborted<br/>"]
 
-    FetchResults --> ProcessResults[Process Results<br/>Transform Data]
+    ProcessMeta --> FetchResults
 
-    ProcessResults --> LoadData["Load Data<br/><small>to {SURVEY_ID}_{results&metadata}</small>"]
+    FetchResults --> ProcessResults["Process Results<br/>Transform Data<br/><small>Uses existing names if append</small>"]
+
+    ProcessResults --> LoadData["Load Data<br/><small>INSERT results to {SURVEY_ID}_results<br/>INSERT metadata only if CREATE</small>"]
 
     LoadData -.->|Optional:<br/>plumberlama docs| Document["Documentation<br/><small>from {SURVEY_ID}_metadata</small>"]
 
@@ -186,9 +182,30 @@ flowchart TD
 
 **Example:** Three yearly waves with different `LP_POLL_ID`s but same `SURVEY_ID=yearly_feedback` → all stored in `yearly_feedback_*` tables with load_counter 0, 1, 2.
 
+### Pipeline Flow
+
+**First Load (load_counter = 0):**
+1. Fetch & parse metadata → Compare with database (no tables exist)
+2. **Run LLM processing** to generate semantic variable names (Q1, Q2_age, etc.)
+3. Fetch & process results using LLM-generated names
+4. Create tables and insert both metadata and results
+
+**Subsequent Loads (load_counter > 0):**
+1. Fetch & parse metadata → Compare with database (validates survey structure unchanged)
+2. **Skip LLM processing** - use existing variable names from database
+3. Fetch & process results using existing names from first load
+4. Insert only new results (metadata already exists)
+
+This design ensures:
+- **Performance**: LLM calls only happen on first load, not every time
+- **Consistency**: Variable names never change after first load
+- **Cost efficiency**: Saves on API calls for subsequent data appends
+
+The preload check compares parsed metadata (original variable IDs like V1, V2) with the `original_id` column in the database to validate survey structure hasn’t changed, while allowing LLM-generated names to remain constant.
+
 ### Question Type Inference
 
-LamaPoll's native question types are refined based on structure:
+LamaPoll’s native question types are refined based on structure:
 
 | LamaPoll Type | Groups | Variables | Inferred Type | Schema |
 |---------------|--------|-----------|---------------|--------|
@@ -202,24 +219,12 @@ LamaPoll's native question types are refined based on structure:
 
 See `src/plumberlama/parse_metadata.py` for full inference logic.
 
-## Design Principles
-
-**Functional Programming:**
-- Pure functions with no side effects
-- Immutable state objects (frozen dataclasses)
-- Explicit data flow through state transitions
-- Declarative style
-
-**Contract Programming:**
-- (Preconditions) and postconditions enforced by state validation
-- Type annotations guarantee correct data flow
-- Pandera schemas enforce DataFrame structure invariants
-
-**Data-Oriented Programming:**
-- Separate data from code
-- Generic data structures (DataFrames) over custom classes
-- Immutable by default
-- Schema separated from representation
+When a question config is wrong in Lamapoll, we log a warning and add this to the documentation. Currently, this is only done for the case that a multiple choice question has an other field, but no text value:
+```
+ ⚠  Warning: Question 27937506: Wie bist du zu [U25] gekommen?
+   Variable V12 has ‘Sonstiges:’ but no text field.
+   Suggestion: Configure as multiple_choice_other in LamaPoll
+```
 
 ## Querying the Database
 
@@ -235,3 +240,53 @@ uv run plumberlama query get_frequency_distribution Q5
 ```
 
 The command automatically loads database credentials and survey ID from your `.env` file. See `src/plumberlama/io/database_queries.py` for all available query functions.
+
+# Misc
+
+## Automated generation of pydantic types from Lamapoll API doc
+
+- Run `uv run python scripts/generate_api_models.py`
+
+## Manual Hosting on FTP Server
+
+### 1. Start PostgreSQL
+
+```bash
+docker compose -f docker-compose.example.yml up -d postgres
+```
+
+### 2. Generate Documentation
+
+```bash
+uv run plumberlama docs
+```
+
+Expected output:
+```
+INFO     Generating documentation from database…
+INFO     ✓ Logo downloaded to /tmp/plumberlama_docs_gr8gwvec/logo.svg
+INFO     ✓ MkDocs site built successfully at /tmp/site
+INFO        ✓ Generated documentation at /tmp/site
+INFO     ============================================================
+INFO     Documentation generated successfully!
+```
+
+### 3. Upload to FTP Server
+
+```bash
+lftp -c "
+    set ftp:ssl-allow no;
+    open -u deploy,<token> ftp://caiac-static-1.netbird.cloud:2121;
+    mirror -R --verbose /tmp/site/ u25-docs/;
+"
+```
+
+### 4. Access the Site
+
+**URL:** https://u25-docs.correlaid.org
+
+**Credentials:**
+- Username: `admin`
+- Password: (check Ansible secrets for `BASIC_AUTH_PASSWORD_STATIC`)
+
+**Note:** Files are uploaded to `u25-docs/` (not `/var/www/sites/u25-docs/`) because the FTP server’s basePath is already `/var/www/sites`.

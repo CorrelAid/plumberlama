@@ -78,6 +78,7 @@ def create_documentation_dataframe(
             pl.col("possible_values_display").alias("possible_values"),
             pl.col("scale_labels_display").alias("scale_labels"),
             pl.col("question_position"),
+            pl.col("validation_warning"),
         ]
     )
 
@@ -94,10 +95,29 @@ def create_markdown_files(
 
     os.makedirs(output_path, exist_ok=True)
 
+    # Check for validation warnings
+    validation_warnings_md = ""
+    if "Validation Warning" in doc_df.columns:
+        warnings_df = doc_df.filter(pl.col("Validation Warning").is_not_null())
+        if len(warnings_df) > 0:
+            validation_warnings_md = "## ⚠️ Validation Warnings\n\n"
+            validation_warnings_md += (
+                f"Found {len(warnings_df)} variable(s) with validation warnings:\n\n"
+            )
+
+            for row in warnings_df.iter_rows(named=True):
+                validation_warnings_md += f"- **Q{row['Question Position']}** - Variable `{row['Variable']}`: {row['Validation Warning']}\n"
+
+            validation_warnings_md += "\n"
+
     markdown = "# Survey Documentation\n\n"
     markdown += "## Overview\n\n"
     markdown += f"Total questions: {number_questions}\n\n"
     markdown += f"Total variables: {doc_df.height}\n\n"
+
+    if validation_warnings_md:
+        markdown += validation_warnings_md
+
     markdown += "## Questions\n\n"
 
     with pl.Config(

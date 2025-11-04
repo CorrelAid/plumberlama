@@ -23,7 +23,7 @@ services:
     image: alpine:latest
     container_name: plumberlama-init-volume
     volumes:
-      - site_output:/app/site
+      - ./site:/app/site
     command: sh -c "chown -R 999:999 /app/site && chmod -R 755 /app/site && echo 'Volume permissions set for UID 999'"
     networks:
       - plumberlama
@@ -45,8 +45,8 @@ services:
       # Output directory - site will be built in /app/site
       SITE_OUTPUT_DIR: /app/site
     volumes:
-      # Mount site output directory for web server
-      - site_output:/app/site
+      # Mount site output directory for web server - accessible at ./site on host
+      - ./site:/app/site
     depends_on:
       init-volume:
         condition: service_completed_successfully
@@ -61,7 +61,7 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - site_output:/usr/share/nginx/html:ro
+      - ./site:/usr/share/nginx/html:ro
     environment:
       # Nginx will use default config which serves from /usr/share/nginx/html
       NGINX_HOST: localhost
@@ -74,7 +74,6 @@ services:
 
 volumes:
   postgres_data:
-  site_output:
 
 networks:
   plumberlama:
