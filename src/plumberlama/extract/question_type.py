@@ -7,6 +7,30 @@ from plumberlama.type_mapping import polars_to_string
 console = Console()
 
 
+def get_anonymization_type(question_type: str) -> str:
+    """Determine anonymization type based on question type.
+
+    Args:
+        question_type: The inferred question type
+
+    Returns:
+        One of: "shuffle", "aggregate", "yeet"
+    """
+    anonymization_mapping = {
+        "matrix": "shuffle",
+        "scale": "shuffle",
+        "single_choice": "aggregate",
+        "multiple_choice": "aggregate",
+        "multiple_choice_other": "aggregate",  # Boolean choices are aggregated
+        "input_single_integer": "shuffle",
+        "input_multiple_integer": "shuffle",
+        "input_multiple_singleline": "yeet",
+        "input_single_singleline": "yeet",
+        "input_single_multiline": "yeet",
+    }
+    return anonymization_mapping[question_type]
+
+
 def extract_question_type(
     question: Questions, absolute_position: int, page_number: int
 ):
@@ -23,7 +47,7 @@ def extract_question_type(
 
     variables = []
 
-    def make_var(var_id, var_type, group_id=0, **extras):
+    def make_var(var_id, var_type, question_type, group_id=0, **extras):
         """Helper to create variable dict with common fields."""
         defaults = {
             "label": None,
@@ -31,10 +55,18 @@ def extract_question_type(
             "range_max": None,
             "possible_values_codes": None,
             "possible_values_labels": None,
+            "scale_labels": None,
             "is_other_boolean": False,
             "is_other_text": False,
             "validation_warning": None,
         }
+
+        # Determine anonymization type
+        # For multiple_choice_other, text fields get "none", booleans get "aggregate"
+        if extras.get("is_other_text", False):
+            anon_type = "yeet"
+        else:
+            anon_type = get_anonymization_type(question_type)
         return {
             "question_id": question_id,
             "group_id": group_id,
@@ -44,6 +76,7 @@ def extract_question_type(
             "schema_variable_type": polars_to_string(
                 var_type
             ),  # Convert DataType to string
+            "anonymization_type": anon_type,
             **defaults,
             **extras,
         }
@@ -63,7 +96,7 @@ def extract_question_type(
             )
             question_type = f"input_single_{group.inputType.value.lower()}"
             var_type = pl.Int64 if group.inputType.value == "INTEGER" else pl.String
-            variables.append(make_var(group.varnames[0], var_type))
+            variables.append(make_var(group.varnames[0], var_type, question_type))
 
         case ("INPUT", n) if n > 1:
             # input_multiple_<input_type>
@@ -89,7 +122,9 @@ def extract_question_type(
                         label_text = item_name.get("de", "") if item_name else ""
 
                 variables.append(
-                    make_var(varname, var_type, group_id=idx, label=label_text)
+                    make_var(
+                        varname, var_type, question_type, group_id=idx, label=label_text
+                    )
                 )
 
         case ("MATRIX", 1):
@@ -116,6 +151,16 @@ def extract_question_type(
                 range_min = None
                 range_max = None
 
+            # Extract scale labels (e.g., ["Strongly Disagree", "Disagree", ...])
+            scale_labels = []
+            if labels and len(labels) > 0:
+                for label_dict in labels:
+                    label_text = (
+                        label_dict.get("de", "") if isinstance(label_dict, dict) else ""
+                    )
+                    if label_text:
+                        scale_labels.append(label_text)
+
             for idx, varname in enumerate(varnames):
                 item_text = ""
                 if idx < len(group_items):
@@ -127,9 +172,11 @@ def extract_question_type(
                     make_var(
                         varname,
                         pl.Int64,
+                        question_type,
                         label=item_text,
                         range_min=range_min,
                         range_max=range_max,
+                        scale_labels=scale_labels,
                     )
                 )
 
@@ -157,6 +204,7 @@ def extract_question_type(
                         make_var(
                             group.varnames[0],
                             pl.String,
+                            question_type,
                             possible_values_codes=(
                                 possible_values_codes if possible_values_codes else None
                             ),
@@ -219,6 +267,7 @@ def extract_question_type(
                             make_var(
                                 varname,
                                 pl.Boolean,
+                                question_type,
                                 label=label_text,
                                 validation_warning=warning_msg,
                             )
@@ -259,7 +308,11 @@ def extract_question_type(
 
                 variables.append(
                     make_var(
-                        varname, pl.Boolean, label=label_text, is_other_boolean=False
+                        varname,
+                        pl.Boolean,
+                        question_type,
+                        label=label_text,
+                        is_other_boolean=False,
                     )
                 )
 
@@ -273,6 +326,7 @@ def extract_question_type(
                 make_var(
                     varnames[other_boolean_idx],
                     pl.Boolean,
+                    question_type,
                     label=other_boolean_label,
                     is_other_boolean=True,
                 )
@@ -283,6 +337,7 @@ def extract_question_type(
                 make_var(
                     other_group.varnames[0],
                     pl.String,
+                    question_type,
                     group_id=1,
                     label=other_text_label,
                     is_other_text=True,
@@ -301,6 +356,7 @@ def extract_question_type(
                 make_var(
                     group.varnames[0],
                     pl.Int64,
+                    question_type,
                     range_min=range_min,
                     range_max=range_max,
                 )

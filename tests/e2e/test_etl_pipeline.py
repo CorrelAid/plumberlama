@@ -53,11 +53,7 @@ def test_run_etl_pipeline_function(docker_compose_test_db, db_connection, monkey
         llm_model=os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"),
         llm_key=os.getenv("OR_KEY"),
         llm_base_url=os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
-        site_output_dir=os.getenv("SITE_OUTPUT_DIR", "/tmp/docs"),
-        mkdocs_site_name=os.getenv("MKDOCS_SITE_NAME", "Test Survey"),
-        mkdocs_site_author=os.getenv("MKDOCS_SITE_AUTHOR", "Test Author"),
-        mkdocs_repo_url=os.getenv("MKDOCS_REPO_URL", ""),
-        mkdocs_logo_url=os.getenv("MKDOCS_LOGO_URL", ""),
+        processed_data_output_path=None,
         db_host="localhost",
         db_port=5433,
         db_name="test_db",
@@ -67,18 +63,40 @@ def test_run_etl_pipeline_function(docker_compose_test_db, db_connection, monkey
 
     survey_id = config.survey_id
 
+    # Verify metadata table
     metadata_df = query_database(f"SELECT * FROM {survey_id}_metadata", config=config)
     assert metadata_df is not None
     assert len(metadata_df) > 0
     logger.info(f"✓ Metadata table has {len(metadata_df)} variables")
 
-    results_df = query_database(f"SELECT * FROM {survey_id}_results", config=config)
-    assert results_df is not None
-    assert "load_counter" in results_df.columns
-    logger.info(f"✓ Results table has {len(results_df)} responses")
+    # Verify anonymized distributions table (for shuffled numeric values)
+    distributions_df = query_database(
+        f"SELECT * FROM {survey_id}_distributions", config=config
+    )
+    assert distributions_df is not None
+    assert "load_counter" in distributions_df.columns
+    assert "variable_id" in distributions_df.columns
+    assert "value" in distributions_df.columns
+    logger.info(f"✓ Distributions table has {len(distributions_df)} shuffled values")
 
-    if len(results_df) > 0:
-        assert all(results_df["load_counter"] == 0)
-        logger.info("✓ All results have load_counter=0 (first load)")
+    # Verify anonymized categorical table (for aggregated counts)
+    categorical_df = query_database(
+        f"SELECT * FROM {survey_id}_categorical", config=config
+    )
+    assert categorical_df is not None
+    assert "load_counter" in categorical_df.columns
+    assert "variable_id" in categorical_df.columns
+    assert "value" in categorical_df.columns
+    assert "count" in categorical_df.columns
+    logger.info(f"✓ Categorical table has {len(categorical_df)} aggregated values")
 
-    logger.info("✓ run_etl_pipeline function works correctly!")
+    # Verify load_counter for first load
+    if len(distributions_df) > 0:
+        assert all(distributions_df["load_counter"] == 0)
+        logger.info("✓ All distributions have load_counter=0 (first load)")
+
+    if len(categorical_df) > 0:
+        assert all(categorical_df["load_counter"] == 0)
+        logger.info("✓ All categorical data have load_counter=0 (first load)")
+
+    logger.info("✓ run_etl_pipeline function works correctly with anonymized data!")

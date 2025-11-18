@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
 import pandera.polars as pa
@@ -7,7 +6,12 @@ import polars as pl
 
 from plumberlama.generated_api_models import Questions
 from plumberlama.logging_config import get_logger
-from plumberlama.validation_schemas import ParsedMetadataSchema, ProcessedMetadataSchema
+from plumberlama.validation_schemas import (
+    CategoricalSchema,
+    DistributionsSchema,
+    ParsedMetadataSchema,
+    ProcessedMetadataSchema,
+)
 
 logger = get_logger(__name__)
 
@@ -88,35 +92,20 @@ class ProcessedResultsState:
 
 
 @dataclass(frozen=True)
-class DocumentedState:
-    """State after generating documentation.
+class AnonymizedResultsState:
+    """State after anonymizing results data.
 
-    Validates that all necessary files for hosting documentation exist.
+    Contains two DataFrames:
+    - distributions_df: Shuffled individual values for numeric/scale questions
+    - categorical_df: Aggregated counts for categorical questions
     """
 
-    site_dir: Path  # Path to built HTML site
+    distributions_df: pl.DataFrame
+    categorical_df: pl.DataFrame
 
     def __post_init__(self):
-        from pathlib import Path
-
-        # Convert to Path object if needed
-        site_dir = Path(object.__getattribute__(self, "site_dir"))
-
-        # Validate site directory exists (MkDocs build output)
-        assert site_dir.exists(), f"MkDocs site directory not found: {site_dir}"
-
-        # Validate key HTML files exist
-        required_html_files = ["index.html"]
-        for html_file in required_html_files:
-            html_path = site_dir / html_file
-            assert html_path.exists(), f"Required HTML file not found: {html_path}"
-
-        # Validate assets directory exists in site (copied by MkDocs)
-        site_assets = site_dir / "assets"
-        if not site_assets.exists():
-            logger.warning(
-                f"⚠ Warning: Assets directory not found in site: {site_assets}"
-            )
+        DistributionsSchema.validate(self.distributions_df, lazy=True)
+        CategoricalSchema.validate(self.categorical_df, lazy=True)
 
 
 @dataclass(frozen=True)

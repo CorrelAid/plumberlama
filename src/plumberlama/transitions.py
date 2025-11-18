@@ -1,5 +1,4 @@
 import io
-import tempfile
 
 import polars as pl
 import polars.selectors as cs
@@ -7,18 +6,13 @@ import requests
 from polars.testing import assert_frame_equal
 
 from plumberlama.config import Config
-from plumberlama.documentation import (
-    build_mkdocs_site,
-    create_documentation_dataframe,
-    create_markdown_files,
-)
+from plumberlama.extract.question_type import extract_question_type
 from plumberlama.generated_api_models import Questions
 from plumberlama.io.api import make_headers, preprocess_api_response
 from plumberlama.io.database import query_database, save_to_database
 from plumberlama.logging_config import get_logger
-from plumberlama.parse_metadata import parse_question
 from plumberlama.states import (
-    DocumentedState,
+    AnonymizedResultsState,
     FetchedMetadataState,
     FetchedResultsState,
     LoadedState,
@@ -27,24 +21,23 @@ from plumberlama.states import (
     ProcessedMetadataState,
     ProcessedResultsState,
 )
+from plumberlama.transform.anonymization import anonymize_results as transform_anonymize
 from plumberlama.transform.cast_types import cast_results_to_schema
 from plumberlama.transform.decode import decode_single_choice
 from plumberlama.transform.llm import load_llm, make_generator
 from plumberlama.transform.rename_results_columns import rename_results_columns
 from plumberlama.transform.variable_naming import rename_vars_with_labels
-from plumberlama.validation_schemas import make_results_schema
+from plumberlama.validation_schemas import (
+    anonymization_types,
+    make_results_schema,
+    question_types,
+)
 
 logger = get_logger(__name__)
 
 
 class MetadataMismatchError(Exception):
     """Raised when survey metadata doesn't match existing database schema."""
-
-    pass
-
-
-class TableNotFoundError(Exception):
-    """Raised when required database table doesn't exist."""
 
     pass
 
@@ -84,7 +77,7 @@ def parse_poll_metadata(
     all_variables = []
     for abs_position, question in enumerate(questions, start=1):
         # extract question data and variables
-        question_dict, vars_for_question = parse_question(
+        question_dict, vars_for_question = extract_question_type(
             question, abs_position, page_mapping[question.pageId]
         )
         question_data.append(question_dict)
@@ -101,6 +94,14 @@ def parse_poll_metadata(
         right_on="id",
         how="left",
     ).rename({"text": "question_text"})
+
+    # Cast enum columns from String to Enum (Polars infers them as String from dicts)
+    parsed_metadata_df = parsed_metadata_df.with_columns(
+        [
+            pl.col("question_type").cast(pl.Enum(question_types)),
+            pl.col("anonymization_type").cast(pl.Enum(anonymization_types)),
+        ]
+    )
 
     logger.info(
         f"   ✓ Parsed {len(parsed_metadata_df)} variables from {len(questions)} questions"
@@ -155,6 +156,23 @@ def preload_check(
         existing_df = query_database(
             f"SELECT * FROM {config.survey_id}_metadata", config
         )
+        # Cast enum columns from String to Enum after loading from DB
+        existing_df = existing_df.with_columns(
+            [
+                pl.col("question_type").cast(pl.Enum(question_types)),
+                pl.col("anonymization_type").cast(pl.Enum(anonymization_types)),
+            ]
+        )
+        # Add anonymized_table column if it doesn't exist (for backward compatibility)
+        if "anonymized_table" not in existing_df.columns:
+            existing_df = existing_df.with_columns(
+                pl.when(pl.col("anonymization_type") == "shuffle")
+                .then(pl.lit("_distributions"))
+                .when(pl.col("anonymization_type") == "aggregate")
+                .then(pl.lit("_categorical"))
+                .otherwise(pl.lit(None))
+                .alias("anonymized_table")
+            )
     except Exception as e:
         # Check if it's a "table doesn't exist" error
         error_msg = str(e).lower()
@@ -208,17 +226,17 @@ def preload_check(
             f"Details: {e}"
         ) from e
 
-    # Get current max load_counter
-    results_df = query_database(
-        f"SELECT MAX(load_counter) as max_counter FROM {config.survey_id}_results",
+    # Get current max load_counter from distributions table
+    distributions_df = query_database(
+        f"SELECT MAX(load_counter) as max_counter FROM {config.survey_id}_distributions",
         config,
     )
-    max_counter = results_df["max_counter"][0]
+    max_counter = distributions_df["max_counter"][0]
     load_counter = (max_counter + 1) if max_counter is not None else 1
 
     logger.info("✓ Metadata validation passed - existing tables found")
     logger.info(
-        f"  → load_counter={load_counter}: Will APPEND new results to existing data"
+        f"  → load_counter={load_counter}: Will APPEND new anonymized data to existing data"
     )
     logger.info("  → Using existing variable names from database for consistency")
     return PreloadCheckState(
@@ -299,18 +317,73 @@ def process_poll_results(
     )
 
 
-def load_data(
+def save_processed_parquet(
+    proc_state: ProcessedResultsState, config: Config, load_counter: int
+) -> None:
+    """Save processed results to parquet file before anonymization.
+
+    Args:
+        proc_state: Processed results state
+        config: Configuration with processed_data_output_path
+    """
+    from pathlib import Path
+
+    if not config.processed_data_output_path:
+        return
+
+    output_path = Path(config.processed_data_output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Add load_counter to filename: data.parquet -> data_0.parquet
+    output_path = output_path.with_stem(f"{output_path.stem}_{load_counter}")
+
+    logger.info(f"Saving processed data to parquet: {output_path}")
+    proc_state.results_df.write_parquet(output_path)
+    logger.info(f"   ✓ Saved {len(proc_state.results_df)} rows to {output_path}")
+
+
+def anonymize_results(
     proc_state: ProcessedResultsState,
+    metadata_df: pl.DataFrame,
+    load_counter: int,
+) -> AnonymizedResultsState:
+    """Anonymize processed results by shuffling or aggregating based on question type.
+
+    Args:
+        proc_state: Processed results state (not modified)
+        metadata_df: Metadata DataFrame with variable information
+        load_counter: Load counter to track data waves
+
+    Returns:
+        AnonymizedResultsState with distributions and categorical DataFrames
+    """
+    # Call the anonymization transform (pure function, no side effects)
+    distributions_df, categorical_df = transform_anonymize(
+        proc_state.results_df, metadata_df, load_counter
+    )
+
+    return AnonymizedResultsState(
+        distributions_df=distributions_df, categorical_df=categorical_df
+    )
+
+
+def load_data(
+    anonymized_state: AnonymizedResultsState,
     validated_state: PreloadCheckState,
     config: Config,
     meta_state: ProcessedMetadataState = None,
 ) -> LoadedState:
-    """Load data to database with load_counter."""
-    logger.info("Loading data to database...")
-    # Add load_counter to results
-    results_with_counter = proc_state.results_df.with_columns(
-        pl.lit(validated_state.load_counter).alias("load_counter")
-    )
+    """Load anonymized data to database.
+
+    Args:
+        anonymized_state: Anonymized results state with distributions and categorical DataFrames
+        validated_state: Preload check state with load_counter
+        config: Configuration
+        meta_state: Processed metadata state (required for first load)
+
+    Returns:
+        LoadedState indicating success
+    """
+    logger.info("Loading anonymized data to database...")
 
     # Determine if we should append (load_counter > 0) or create new (load_counter == 0)
     append = validated_state.load_counter > 0
@@ -328,76 +401,34 @@ def load_data(
         metadata_df = query_database(
             f"SELECT * FROM {config.survey_id}_metadata", config
         )
+        # Cast enum columns from String to Enum after loading from DB
+        metadata_df = metadata_df.with_columns(
+            [
+                pl.col("question_type").cast(pl.Enum(question_types)),
+                pl.col("anonymization_type").cast(pl.Enum(anonymization_types)),
+            ]
+        )
+        # Add anonymized_table column if it doesn't exist (for backward compatibility)
+        if "anonymized_table" not in metadata_df.columns:
+            metadata_df = metadata_df.with_columns(
+                pl.when(pl.col("anonymization_type") == "shuffle")
+                .then(pl.lit("_distributions"))
+                .when(pl.col("anonymization_type") == "aggregate")
+                .then(pl.lit("_categorical"))
+                .otherwise(pl.lit(None))
+                .alias("anonymized_table")
+            )
 
     loaded = save_to_database(
-        results_df=results_with_counter,
+        distributions_df=anonymized_state.distributions_df,
+        categorical_df=anonymized_state.categorical_df,
         metadata_df=metadata_df,
         table_prefix=config.survey_id,
         append=append,
         config=config,
     )
     logger.info(
-        f"   ✓ Loaded {len(results_with_counter)} responses with load_counter={validated_state.load_counter}"
+        f"   ✓ Loaded {len(anonymized_state.distributions_df)} distribution records and "
+        f"{len(anonymized_state.categorical_df)} categorical records with load_counter={validated_state.load_counter}"
     )
     return LoadedState(loaded)
-
-
-def generate_doc(config: Config) -> DocumentedState:
-    """Generate documentation from survey data stored in database."""
-    logger.info("Generating documentation from database...")
-
-    # Check if metadata table exists using SQLAlchemy inspect
-    table_name = f"{config.survey_id}_metadata"
-    from sqlalchemy import create_engine
-    from sqlalchemy import inspect as sa_inspect
-
-    connection_uri = f"postgresql://{config.db_user}:{config.db_password}@{config.db_host}:{config.db_port}/{config.db_name}"
-    engine = create_engine(connection_uri)
-    inspector = sa_inspect(engine)
-    existing_tables = inspector.get_table_names()
-
-    if table_name not in existing_tables:
-        logger.error("=" * 60)
-        logger.error("❌ DOCUMENTATION GENERATION FAILED")
-        logger.error("=" * 60)
-        logger.error(f"Required table '{table_name}' not found in database")
-        logger.error("")
-        logger.error("The documentation requires metadata to be loaded first.")
-        logger.error("Please run the ETL pipeline before generating documentation:")
-        logger.error("")
-        logger.error("  plumberlama etl")
-        logger.error("")
-        logger.error("This will create the required tables:")
-        logger.error(f"  - {config.survey_id}_metadata")
-        logger.error(f"  - {config.survey_id}_results")
-        logger.error("=" * 60)
-        raise TableNotFoundError(
-            f"Table '{table_name}' does not exist. "
-            f"Run 'plumberlama etl' first to load survey data."
-        )
-
-    # Retrieve full metadata from database
-    metadata_df = query_database(f"SELECT * FROM {table_name}", config)
-
-    # Prepare documentation DataFrame (metadata already contains everything)
-    doc_df = create_documentation_dataframe(metadata_df)
-
-    # Create markdown files in temporary directory
-    with tempfile.TemporaryDirectory(prefix="plumberlama_docs_") as tmp_docs_dir:
-        num_questions = metadata_df["question_id"].n_unique()
-        create_markdown_files(doc_df, num_questions, tmp_docs_dir, config.survey_id)
-
-        # Build MkDocs site to persistent location
-        mkdocs_config = {
-            "site_name": config.mkdocs_site_name,
-            "site_author": config.mkdocs_site_author,
-            "repo_url": config.mkdocs_repo_url,
-            "logo_url": config.mkdocs_logo_url,
-        }
-        site_path = build_mkdocs_site(
-            tmp_docs_dir, mkdocs_config, config.site_output_dir
-        )
-
-    # Return DocumentedState with validated paths
-    logger.info(f"   ✓ Generated documentation at {site_path}")
-    return DocumentedState(site_dir=site_path)

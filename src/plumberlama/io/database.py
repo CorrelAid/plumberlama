@@ -24,47 +24,85 @@ def _create_table_from_dataframe(
 
 
 def save_to_database(
-    results_df: pl.DataFrame,
+    distributions_df: pl.DataFrame,
+    categorical_df: pl.DataFrame,
     metadata_df: pl.DataFrame,
     table_prefix: str = "survey",
     append: bool = True,
     config: Optional[Config] = None,
 ):
-    """Save survey dataframes to PostgreSQL database with native types."""
+    """Save anonymized survey data to PostgreSQL database.
+
+    Args:
+        distributions_df: Shuffled individual values (variable_id, value, load_counter)
+        categorical_df: Aggregated counts (variable_id, value, count, load_counter)
+        metadata_df: Variable metadata
+        table_prefix: Prefix for table names
+        append: Whether to append or create new tables
+        config: Configuration with database connection info
+
+    Returns:
+        Success message
+    """
 
     connection_uri = config.get_db_connection_uri()
     engine = create_engine(connection_uri)
     db_metadata = MetaData()
 
     # Define table names
-    results_table_name = f"{table_prefix}_results"
+    distributions_table_name = f"{table_prefix}_distributions"
+    categorical_table_name = f"{table_prefix}_categorical"
     metadata_table_name = f"{table_prefix}_metadata"
 
     with engine.begin() as conn:
         if append:
             # Reflect existing tables from database
-            db_metadata.reflect(conn, only=[results_table_name, metadata_table_name])
-            results_table = db_metadata.tables[results_table_name]
+            db_metadata.reflect(
+                conn,
+                only=[
+                    distributions_table_name,
+                    categorical_table_name,
+                    metadata_table_name,
+                ],
+            )
+            distributions_table = db_metadata.tables[distributions_table_name]
+            categorical_table = db_metadata.tables[categorical_table_name]
             # metadata_table only needed for verification, not insertion
-            metadata_table = db_metadata.tables[metadata_table_name]
 
-            # Only insert results when appending (metadata already exists)
-            results_records = results_df.to_dicts()
-            conn.execute(results_table.insert(), results_records)
+            # Insert distributions and categorical data
+            if len(distributions_df) > 0:
+                distributions_records = distributions_df.to_dicts()
+                conn.execute(distributions_table.insert(), distributions_records)
+
+            if len(categorical_df) > 0:
+                categorical_records = categorical_df.to_dicts()
+                conn.execute(categorical_table.insert(), categorical_records)
         else:
             # Create table schemas from DataFrames
-            results_table = _create_table_from_dataframe(
-                results_df, results_table_name, db_metadata
+            distributions_table = _create_table_from_dataframe(
+                distributions_df, distributions_table_name, db_metadata
+            )
+            categorical_table = _create_table_from_dataframe(
+                categorical_df, categorical_table_name, db_metadata
             )
             metadata_table = _create_table_from_dataframe(
                 metadata_df, metadata_table_name, db_metadata
             )
-            # Create tables, fail if they already exist
-            db_metadata.create_all(conn, tables=[results_table, metadata_table])
 
-            # Insert both results and metadata for first load
-            results_records = results_df.to_dicts()
-            conn.execute(results_table.insert(), results_records)
+            # Create tables, fail if they already exist
+            db_metadata.create_all(
+                conn,
+                tables=[distributions_table, categorical_table, metadata_table],
+            )
+
+            # Insert all data for first load
+            if len(distributions_df) > 0:
+                distributions_records = distributions_df.to_dicts()
+                conn.execute(distributions_table.insert(), distributions_records)
+
+            if len(categorical_df) > 0:
+                categorical_records = categorical_df.to_dicts()
+                conn.execute(categorical_table.insert(), categorical_records)
 
             metadata_records = metadata_df.to_dicts()
             conn.execute(metadata_table.insert(), metadata_records)
@@ -75,9 +113,12 @@ def save_to_database(
     db_name = os.getenv("DB_NAME", "survey_data")
 
     logger.info("✓ Saved to PostgreSQL database:")
-    logger.info(f"  - {results_table_name}: {len(results_df)} rows")
+    logger.info(f"  - {distributions_table_name}: {len(distributions_df)} rows")
+    logger.info(f"  - {categorical_table_name}: {len(categorical_df)} rows")
     logger.info(f"  - {metadata_table_name}: {len(metadata_df)} rows")
     logger.info(f"  - Database location: {db_host}:{db_port}/{db_name}")
+
+    return "success"
 
 
 def query_database(sql: str, config: Optional[Config] = None) -> pl.DataFrame:

@@ -13,14 +13,18 @@ from plumberlama.io.database import query_database, save_to_database
 
 
 def test_self_service_get_question_metadata(
-    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
+    sample_anonymized_results,
+    sample_processed_metadata,
+    test_db_config,
+    db_connection,
 ):
     """Test retrieving metadata for a specific question - typical self-service query."""
     table_prefix = "test_self_service_meta"
 
     # Save to database
     save_to_database(
-        results_df=sample_processed_results.results_df,
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
@@ -40,18 +44,18 @@ def test_self_service_get_question_metadata(
 
 
 def test_self_service_frequency_analysis(
-    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
+    sample_anonymized_results,
+    sample_processed_metadata,
+    test_db_config,
+    db_connection,
 ):
     """Test frequency analysis with labels - typical self-service analytics."""
     table_prefix = "test_self_service_freq"
 
-    # Save to database with load_counter
-    results_with_counter = sample_processed_results.results_df.with_columns(
-        pl.lit(0).alias("load_counter")
-    )
-
+    # Save to database
     save_to_database(
-        results_df=results_with_counter,
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,
@@ -78,19 +82,29 @@ def test_self_service_frequency_analysis(
 
 
 def test_self_service_time_series_analysis(
-    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
+    sample_anonymized_results,
+    sample_processed_metadata,
+    test_db_config,
+    db_connection,
 ):
     """Test analyzing data across multiple waves using load_counter."""
+
     table_prefix = "test_self_service_timeseries"
 
     # Simulate three waves of data collection
+    # We need to create sample data for each wave
     for wave in range(3):
-        results_with_counter = sample_processed_results.results_df.with_columns(
+        # For simplicity, reuse the same anonymized data but with different load_counter
+        distributions_df = sample_anonymized_results.distributions_df.with_columns(
+            pl.lit(wave).alias("load_counter")
+        )
+        categorical_df = sample_anonymized_results.categorical_df.with_columns(
             pl.lit(wave).alias("load_counter")
         )
 
         save_to_database(
-            results_df=results_with_counter,
+            distributions_df=distributions_df,
+            categorical_df=categorical_df,
             metadata_df=sample_processed_metadata.final_metadata_df,
             table_prefix=table_prefix,
             append=(wave > 0),
@@ -118,17 +132,17 @@ def test_self_service_time_series_analysis(
 
 
 def test_self_service_matrix_question_analysis(
-    sample_processed_results, sample_processed_metadata, test_db_config, db_connection
+    sample_anonymized_results,
+    sample_processed_metadata,
+    test_db_config,
+    db_connection,
 ):
     """Test analyzing matrix questions with scale labels for visualization."""
     table_prefix = "test_self_service_matrix"
 
-    results_with_counter = sample_processed_results.results_df.with_columns(
-        pl.lit(0).alias("load_counter")
-    )
-
     save_to_database(
-        results_df=results_with_counter,
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=table_prefix,
         append=False,

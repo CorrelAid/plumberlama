@@ -3,6 +3,54 @@ import polars as pl
 
 from plumberlama.type_mapping import string_to_polars
 
+question_types = [
+    "matrix",
+    "multiple_choice",
+    "single_choice",
+    "multiple_choice_other",
+    "input_single_singleline",
+    "input_single_integer",
+    "input_single_multiline",
+    "input_multiple_singleline",
+    "input_multiple_integer",
+    "input_multiple_multiline",
+    "scale",
+]
+
+anonymization_types = ["shuffle", "aggregate", "yeet"]
+
+
+class DistributionsSchema(pa.DataFrameModel):
+    """Schema for anonymized distributions table.
+
+    Contains shuffled individual values for numeric questions (scale, matrix,
+    numeric inputs) to preserve statistical distributions while breaking
+    respondent linkage.
+    """
+
+    class Config:
+        coerce = True  # Allow type coercion (e.g., Int64 -> Float64)
+
+    variable_id: str
+    value: float  # Numeric values (can be int or float)
+    load_counter: int = pa.Field(ge=0)  # Wave number, starts at 0
+
+
+class CategoricalSchema(pa.DataFrameModel):
+    """Schema for anonymized categorical table.
+
+    Contains aggregated counts for categorical questions (single choice,
+    multiple choice) with no individual response data retained.
+    """
+
+    class Config:
+        coerce = True  # Allow type coercion
+
+    variable_id: str
+    value: str  # Categorical value (choice label or boolean string)
+    count: int = pa.Field(ge=0)  # Aggregated count for this value
+    load_counter: int = pa.Field(ge=0)  # Wave number, starts at 0
+
 
 class ParsedMetadataSchema(pa.DataFrameModel):
     """Schema for parsed metadata DataFrame at variable level with question text joined.
@@ -15,10 +63,11 @@ class ParsedMetadataSchema(pa.DataFrameModel):
     group_id: int
     id: str
     question_position: int
-    question_type: str
+    question_type: pl.Enum(question_types)
     schema_variable_type: (
         str  # string representation of Polars DataType (e.g., "Int64", "String")
     )
+    anonymization_type: pl.Enum(anonymization_types)
     question_text: str
     label: str = pa.Field(nullable=True)
     range_min: int = pa.Field(nullable=True)
@@ -35,10 +84,14 @@ class ProcessedMetadataSchema(ParsedMetadataSchema):
     """Schema for processed metadata DataFrame with renamed variables.
 
     Extends ParsedMetadataSchema by adding original_id field to track the mapping
-    from original variable names (e.g., V1, V2) to renamed variables (e.g., Q1, Q2_age).
+    from original variable names (e.g., V1, V2) to renamed variables (e.g., Q1, Q2_age),
+    and anonymized_table to indicate which database table contains the anonymized data.
     """
 
     original_id: str
+    anonymized_table: str = pa.Field(
+        nullable=True
+    )  # "_distributions", "_categorical", or null for "none"/"yeet"
 
 
 def make_results_schema(variable_df: pl.DataFrame) -> pa.DataFrameSchema:

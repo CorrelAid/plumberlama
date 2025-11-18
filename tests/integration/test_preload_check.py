@@ -28,22 +28,16 @@ def test_preload_check_matching_metadata(
     test_db_config,
     sample_parsed_metadata,
     sample_processed_metadata,
-    sample_processed_results,
+    sample_anonymized_results,
     db_connection,
 ):
     """Test preload check when existing metadata matches current metadata."""
-    import polars as pl
-
     test_db_config.survey_id = "test_preload_matching"
-
-    # Add load_counter column (this is normally added by load_data transition)
-    results_with_counter = sample_processed_results.results_df.with_columns(
-        pl.lit(0).alias("load_counter")
-    )
 
     # Save initial data to database (with processed metadata from first load)
     save_to_database(
-        results_df=results_with_counter,
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=test_db_config.survey_id,
         append=False,
@@ -61,6 +55,7 @@ def test_preload_check_mismatched_variable_count(
     test_db_config,
     sample_parsed_metadata,
     sample_processed_metadata,
+    sample_anonymized_results,
     db_connection,
 ):
     """Test preload check fails when variable count differs."""
@@ -68,9 +63,8 @@ def test_preload_check_mismatched_variable_count(
 
     # Save original processed metadata (from first load)
     save_to_database(
-        results_df=sample_processed_metadata.final_metadata_df.head(
-            1
-        ),  # Dummy results df
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=test_db_config.survey_id,
         append=False,
@@ -94,6 +88,7 @@ def test_preload_check_mismatched_variable_ids(
     test_db_config,
     sample_parsed_metadata,
     sample_processed_metadata,
+    sample_anonymized_results,
     db_connection,
 ):
     """Test preload check fails when variable IDs differ."""
@@ -103,9 +98,8 @@ def test_preload_check_mismatched_variable_ids(
 
     # Save original processed metadata (from first load)
     save_to_database(
-        results_df=sample_processed_metadata.final_metadata_df.head(
-            1
-        ),  # Dummy results df
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=test_db_config.survey_id,
         append=False,
@@ -137,6 +131,7 @@ def test_preload_check_mismatched_question_types(
     test_db_config,
     sample_parsed_metadata,
     sample_processed_metadata,
+    sample_anonymized_results,
     db_connection,
 ):
     """Test preload check fails when question types differ."""
@@ -146,9 +141,8 @@ def test_preload_check_mismatched_question_types(
 
     # Save original processed metadata (from first load)
     save_to_database(
-        results_df=sample_processed_metadata.final_metadata_df.head(
-            1
-        ),  # Dummy results df
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=test_db_config.survey_id,
         append=False,
@@ -179,6 +173,7 @@ def test_preload_check_renamed_variables_allowed(
     test_db_config,
     sample_parsed_metadata,
     sample_processed_metadata,
+    sample_anonymized_results,
     db_connection,
 ):
     """Test that preload check allows the same survey structure.
@@ -186,18 +181,12 @@ def test_preload_check_renamed_variables_allowed(
     Since we now compare parsed metadata (id) with database metadata (original_id),
     the comparison checks the raw survey structure (before LLM renaming).
     """
-    import polars as pl
-
     test_db_config.survey_id = "test_preload_rename_allowed"
-
-    # Create dummy results with load_counter
-    dummy_results = sample_processed_metadata.final_metadata_df.head(1).with_columns(
-        pl.lit(0).alias("load_counter")
-    )
 
     # Save original processed metadata (from first load)
     save_to_database(
-        results_df=dummy_results,
+        distributions_df=sample_anonymized_results.distributions_df,
+        categorical_df=sample_anonymized_results.categorical_df,
         metadata_df=sample_processed_metadata.final_metadata_df,
         table_prefix=test_db_config.survey_id,
         append=False,

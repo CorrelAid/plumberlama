@@ -194,4 +194,14 @@ def rename_vars_with_labels(metadata_df, generator, lm):
         .alias("id")
     )
 
+    # Add anonymized_table column based on anonymization_type
+    metadata_df = metadata_df.with_columns(
+        pl.when(pl.col("anonymization_type") == "shuffle")
+        .then(pl.lit("_distributions"))
+        .when(pl.col("anonymization_type") == "aggregate")
+        .then(pl.lit("_categorical"))
+        .otherwise(pl.lit(None))
+        .alias("anonymized_table")
+    )
+
     return metadata_df

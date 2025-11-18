@@ -1,6 +1,10 @@
 # plumberlama
 
-It's lama with one l! Generate documentation for repeated cross-sectional surveys (anonymous participants) created with LamaPoll and process results to simplify self-service data analysis and visualization.
+It’s lama with one l! Process, anonymize and load survey results from LamaPoll to simplify self-service data analysis and visualization.
+
+> **Note:** Documentation generation has been moved to a separate repository: [plumberlama-docs](https://github.com/correlaid/plumberlama-docs)
+
+> **Note:** Explorative data analysis happens locally using the PROCESSED_DATA_OUTPUT_PATH environment variable. Make sure to not commit this file to the repo! *.parquet is added to the gitignore.
 
 ## Deployment
 
@@ -13,36 +17,22 @@ uv pip install "git+https://github.com/correlaid/plumberlama.git"
 
 set -a && source .env && set +a
 
-docker compose -f docker-compose.example.yml up -d postgres
+docker compose up -d postgres
 
 uv run plumberlama etl
-
-uv run plumberlama docs
 ```
-
-You can then serve the generated site, for example with the following command (requires busybox utilities to be installed on your OS):
-
-```bash
-busybox httpd -f -vv -p 1102 -h /tmp/site  # Use the SITE_OUTPUT_DIR you configured
-
-```
-
 
 ### Option 2: Use containerized pipeline
 
 See the example docker compose and Dockerfile for how this could work. The Dockerfile contained in this repository installs the python code from the local source. See the comment in it for how to install from Github repository.
 
 ```bash
- docker compose -f docker-compose.example.yml up
+docker compose up -d
 ```
 
 This will:
 - Start a PostgreSQL database
 - Run the ETL pipeline to fetch and process survey data
-- Generate documentation as a static MkDocs site
-- Serve the documentation at http://localhost:8080
-
-The pipeline runs ETL first, then generates documentation. Once complete, you can view the documentation in your browser at http://localhost:8080.
 
 ### Configuration
 
@@ -60,13 +50,10 @@ LLM_MODEL=openrouter/anthropic/claude-3.5-sonnet
 OR_KEY=your_openrouter_key
 LLM_BASE_URL=https://openrouter.ai/api/v1
 
-# Documentation Configuration
-SITE_OUTPUT_DIR=/tmp/site              # Directory for built HTML files
-MKDOCS_SITE_NAME=My Survey Documentation
-MKDOCS_SITE_AUTHOR=Survey Team
-MKDOCS_REPO_URL=https://github.com/yourorg/yourrepo
-MKDOCS_LOGO_URL=https://example.com/logo.svg
+# Processed Data Output (optional - for saving before anonymization)
+# PROCESSED_DATA_OUTPUT_PATH=/path/to/output/processed_data.parquet
 
+# Database Configuration
 DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=survey_data
@@ -105,12 +92,12 @@ plumberlama/
 │   ├── validation_schemas.py       # Pandera validation schemas
 │   ├── generated_api_models.py     # Pydantic API models (auto-generated)
 │   ├── parse_metadata.py           # Question parsing and type inference
-│   ├── documentation.py            # MkDocs generation
 │   ├── type_mapping.py             # Polars ↔ String type conversion
 │   ├── logging_config.py           # Logging configuration
 │   ├── extract/
 │   │   └── question_type.py        # Question type extraction and inference
 │   ├── transform/
+│   │   ├── anonymization.py        # Privacy-preserving data anonymization
 │   │   ├── cast_types.py           # Type casting
 │   │   ├── decode.py               # Choice decoding
 │   │   ├── llm.py                  # LLM integration
@@ -158,9 +145,12 @@ flowchart TD
 
     FetchResults --> ProcessResults["Process Results<br/>Transform Data<br/><small>Uses existing names if append</small>"]
 
-    ProcessResults --> LoadData["Load Data<br/><small>INSERT results to {SURVEY_ID}_results<br/>INSERT metadata only if CREATE</small>"]
+    ProcessResults -.->|"Optional:<br/>if PROCESSED_DATA_OUTPUT_PATH set"| SaveParquet["Save to Parquet<br/><small>Before anonymization</small>"]
 
-    LoadData -.->|Optional:<br/>plumberlama docs| Document["Documentation<br/><small>from {SURVEY_ID}_metadata</small>"]
+    ProcessResults --> Anonymize["Anonymize Results<br/><small>Shuffle/Aggregate by question type</small>"]
+    SaveParquet -.-> Anonymize
+
+    Anonymize --> LoadData["Load Anonymized Data<br/><small>INSERT to {SURVEY_ID}_distributions & _categorical<br/>INSERT metadata only if CREATE</small>"]
 
     style Config fill:#e1f5ff,stroke:#333,stroke-width:2px,color:#000
     style FetchMeta fill:#fff4e1,stroke:#333,stroke-width:2px,color:#000
@@ -169,14 +159,15 @@ flowchart TD
     style ProcessMeta fill:#f0e1ff,stroke:#333,stroke-width:2px,color:#000
     style PreloadCheck fill:#ffeb3b,stroke:#333,stroke-width:3px,color:#000
     style ProcessResults fill:#e1ffe1,stroke:#333,stroke-width:2px,color:#000
+    style SaveParquet fill:#e8f5e9,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5,color:#000
+    style Anonymize fill:#fff3e0,stroke:#333,stroke-width:2px,color:#000
     style LoadData fill:#ffe1e1,stroke:#333,stroke-width:2px,color:#000
-    style Document fill:#ffe1f5,stroke:#333,stroke-width:2px,color:#000
     style Stop fill:#ff5252,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ### Survey Identity & Cross-Sectional Data
 
-- **`SURVEY_ID`**: Stable identifier for the cross-sectional survey. Names database tables (`{survey_id}_metadata`, `{survey_id}_results`)
+- **`SURVEY_ID`**: Stable identifier for the cross-sectional survey. Names database tables (`{survey_id}_metadata`, `{survey_id}_distributions`, `{survey_id}_categorical`)
 - **`LP_POLL_ID`**: LamaPoll poll ID, can change between waves. Data from different polls with identical structure is appended to the same `SURVEY_ID` tables
 - **`load_counter`**: Tracks which waves data came from (0=first load/CREATE, >0=subsequent loads/APPEND)
 
@@ -188,20 +179,18 @@ flowchart TD
 1. Fetch & parse metadata → Compare with database (no tables exist)
 2. **Run LLM processing** to generate semantic variable names (Q1, Q2_age, etc.)
 3. Fetch & process results using LLM-generated names
-4. Create tables and insert both metadata and results
+4. *Optional:* Save processed data to parquet (if `PROCESSED_DATA_OUTPUT_PATH` set)
+5. **Anonymize results** - shuffle or aggregate based on question type
+6. Create tables and insert metadata and anonymized data
 
 **Subsequent Loads (load_counter > 0):**
 1. Fetch & parse metadata → Compare with database (validates survey structure unchanged)
 2. **Skip LLM processing** - use existing variable names from database
 3. Fetch & process results using existing names from first load
-4. Insert only new results (metadata already exists)
+4. *Optional:* Save processed data to parquet (if `PROCESSED_DATA_OUTPUT_PATH` set)
+5. **Anonymize results** - shuffle or aggregate based on question type
+6. Insert only new anonymized data (metadata already exists)
 
-This design ensures:
-- **Performance**: LLM calls only happen on first load, not every time
-- **Consistency**: Variable names never change after first load
-- **Cost efficiency**: Saves on API calls for subsequent data appends
-
-The preload check compares parsed metadata (original variable IDs like V1, V2) with the `original_id` column in the database to validate survey structure hasn’t changed, while allowing LLM-generated names to remain constant.
 
 ### Question Type Inference
 
@@ -217,76 +206,62 @@ LamaPoll’s native question types are refined based on structure:
 | SCALE | 1 | 1 | `scale` | Int64 with range |
 | MATRIX | 1 | >1 | `matrix` | Multiple Int64 with range |
 
-See `src/plumberlama/parse_metadata.py` for full inference logic.
+See `src/plumberlama/extract/question_type.py` for full inference logic.
 
 When a question config is wrong in Lamapoll, we log a warning and add this to the documentation. Currently, this is only done for the case that a multiple choice question has an other field, but no text value:
 ```
  ⚠  Warning: Question 27937506: Wie bist du zu [U25] gekommen?
-   Variable V12 has ‘Sonstiges:’ but no text field.
+   Variable V12 has 'Sonstiges:' but no text field.
    Suggestion: Configure as multiple_choice_other in LamaPoll
 ```
 
-## Querying the Database
+### Anonymization Strategy
 
-After running the ETL pipeline, you can query the PostgreSQL database using predefined query functions:
+Based on question type, different anonymization methods preserve statistical utility while protecting privacy:
+
+| Question Type | Anonymization Method | Database Table | Reason |
+|---------------|---------------------|----------------|--------|
+| `single_choice` | **Aggregate** | `_categorical` | Counts preserve distribution, no individual choices |
+| `multiple_choice` | **Aggregate** | `_categorical` | Per-option counts, no response patterns |
+| `scale` | **Shuffle** | `_distributions` | Breaks linkage while preserving mean/variance |
+| `matrix` | **Shuffle** | `_distributions` | Per-item shuffling prevents row reconstruction |
+| `input_*_integer` | **Shuffle** | `_distributions` | Preserves statistics without respondent IDs |
+| `input_*_singleline` | **Exclude** | _(not stored)_ | Free text could identify individuals |
+| `input_*_multiline` | **Exclude** | _(not stored)_ | Free text could identify individuals |
+
+**Database Schema:**
+
+See `DistributionsSchema` and `CategoricalSchema` in `src/plumberlama/validation_schemas.py`
+
+- `{survey_id}_distributions`: Shuffled individual values for numeric questions (variable_id, value, load_counter)
+- `{survey_id}_categorical`: Aggregated counts for choice questions (variable_id, value, count, load_counter)
+- `{survey_id}_metadata`: Variable descriptions and question metadata
+  - Includes `anonymized_table` column indicating which table contains the data: `"_distributions"`, `"_categorical"`, or `null` (for excluded data)
+
+## Querying the Anonymized Database
+
+After running the ETL pipeline, you can query the PostgreSQL database using predefined query functions that work with the anonymized schema:
 
 ```bash
 # List available query functions
 uv run plumberlama query --list
 
-# Use query functions (table_prefix automatically set from SURVEY_ID in .env)
-uv run plumberlama query get_question_metadata  27937539
-uv run plumberlama query get_frequency_distribution Q5
+# Query examples (table_prefix automatically set from SURVEY_ID in .env)
+uv run plumberlama query get_question_metadata 27937539        # By question ID
+uv run plumberlama query get_frequency_distribution Q6         # Categorical: counts & %
+uv run plumberlama query get_distribution_stats Q12            # Numeric: mean, median, std
+uv run plumberlama query get_time_series_analysis Q12          # Trends across waves
+uv run plumberlama query find_variable_by_question_type scale  # Find by type
+
 ```
 
-The command automatically loads database credentials and survey ID from your `.env` file. See `src/plumberlama/io/database_queries.py` for all available query functions.
+The command automatically loads database credentials and survey ID from your `.env` file.
 
 # Misc
 
 ## Automated generation of pydantic types from Lamapoll API doc
 
-- Run `uv run python scripts/generate_api_models.py`
+Run `uv run python scripts/generate_api_models.py`
 
-## Manual Hosting on FTP Server
 
-### 1. Start PostgreSQL
-
-```bash
-docker compose -f docker-compose.example.yml up -d postgres
-```
-
-### 2. Generate Documentation
-
-```bash
-uv run plumberlama docs
-```
-
-Expected output:
-```
-INFO     Generating documentation from database…
-INFO     ✓ Logo downloaded to /tmp/plumberlama_docs_gr8gwvec/logo.svg
-INFO     ✓ MkDocs site built successfully at /tmp/site
-INFO        ✓ Generated documentation at /tmp/site
-INFO     ============================================================
-INFO     Documentation generated successfully!
-```
-
-### 3. Upload to FTP Server
-
-```bash
-lftp -c "
-    set ftp:ssl-allow no;
-    open -u deploy,<token> ftp://caiac-static-1.netbird.cloud:2121;
-    mirror -R --verbose /tmp/site/ u25-docs/;
-"
-```
-
-### 4. Access the Site
-
-**URL:** https://u25-docs.correlaid.org
-
-**Credentials:**
-- Username: `admin`
-- Password: (check Ansible secrets for `BASIC_AUTH_PASSWORD_STATIC`)
-
-**Note:** Files are uploaded to `u25-docs/` (not `/var/www/sites/u25-docs/`) because the FTP server’s basePath is already `/var/www/sites`.
+##

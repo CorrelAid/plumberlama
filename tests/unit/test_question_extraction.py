@@ -2,8 +2,8 @@
 
 import pytest
 
+from plumberlama.extract.question_type import extract_question_type
 from plumberlama.generated_api_models import Questions
-from plumberlama.parse_metadata import parse_question
 
 
 @pytest.fixture
@@ -181,7 +181,7 @@ def scale_question():
 def test_multiple_choice_other_no_duplicate_boolean(multiple_choice_other_question):
     """Test that multiple_choice_other doesn't create duplicate 'other' boolean variable."""
     question = Questions(**multiple_choice_other_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=8, page_number=1
     )
 
@@ -196,22 +196,27 @@ def test_multiple_choice_other_no_duplicate_boolean(multiple_choice_other_questi
     assert v42_vars[0]["is_other_boolean"]
     assert v42_vars[0]["schema_variable_type"] == "Boolean"
     assert v42_vars[0]["label"] == "Anderes"
+    assert v42_vars[0]["anonymization_type"] == "aggregate"
 
     # Check for V42.1 (other text field)
     v42_1_vars = [v for v in variables if v["id"] == "V42.1"]
     assert len(v42_1_vars) == 1
     assert v42_1_vars[0]["is_other_text"]
     assert v42_1_vars[0]["schema_variable_type"] == "String"
+    assert (
+        v42_1_vars[0]["anonymization_type"] == "yeet"
+    )  # Text fields get "yeet" for other text
 
     # Check regular choice variables have is_other_boolean=False
     v40 = [v for v in variables if v["id"] == "V40"][0]
     assert not v40["is_other_boolean"]
+    assert v40["anonymization_type"] == "aggregate"
 
 
 def test_multiple_choice_other_empty_label(multiple_choice_other_empty_label_question):
     """Test multiple_choice_other with empty label for 'other' boolean."""
     question = Questions(**multiple_choice_other_empty_label_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=16, page_number=1
     )
 
@@ -228,7 +233,7 @@ def test_multiple_choice_other_empty_label(multiple_choice_other_empty_label_que
 def test_matrix_with_items(matrix_question):
     """Test matrix question with item labels."""
     question = Questions(**matrix_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=4, page_number=1
     )
 
@@ -244,12 +249,13 @@ def test_matrix_with_items(matrix_question):
         assert var["scale_labels"] == ["Option A", "Option B"]
         assert var["range_min"] == 1
         assert var["range_max"] == 2
+        assert var["anonymization_type"] == "shuffle"
 
 
 def test_input_multiple_with_group_names(input_multiple_question):
     """Test input_multiple gets labels from group names."""
     question = Questions(**input_multiple_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=1, page_number=1
     )
 
@@ -259,12 +265,14 @@ def test_input_multiple_with_group_names(input_multiple_question):
     assert variables[1]["label"] == "Second field"
     assert variables[0]["schema_variable_type"] == "String"
     assert variables[1]["schema_variable_type"] == "String"
+    assert variables[0]["anonymization_type"] == "yeet"  # Text fields are yeeted
+    assert variables[1]["anonymization_type"] == "yeet"
 
 
 def test_single_choice_with_possible_values(single_choice_question):
     """Test single_choice creates possible_values mapping."""
     question = Questions(**single_choice_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=1, page_number=1
     )
 
@@ -277,12 +285,13 @@ def test_single_choice_with_possible_values(single_choice_question):
         "Option C",
     ]
     assert variables[0]["schema_variable_type"] == "String"
+    assert variables[0]["anonymization_type"] == "aggregate"
 
 
 def test_scale_with_range(scale_question):
     """Test scale question extracts range correctly."""
     question = Questions(**scale_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=1, page_number=1
     )
 
@@ -291,6 +300,7 @@ def test_scale_with_range(scale_question):
     assert variables[0]["range_min"] == 1
     assert variables[0]["range_max"] == 5
     assert variables[0]["schema_variable_type"] == "Int64"
+    assert variables[0]["anonymization_type"] == "shuffle"
 
 
 def test_scale_with_float_range_converts_to_int():
@@ -318,7 +328,7 @@ def test_scale_with_float_range_converts_to_int():
     }
 
     question = Questions(**scale_question_float)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=1, page_number=1
     )
 
@@ -358,7 +368,7 @@ def test_matrix_with_float_range_converts_to_int():
     }
 
     question = Questions(**matrix_question_float)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=1, page_number=1
     )
 
@@ -380,7 +390,7 @@ def test_multiple_choice_with_sonstiges_warns(multiple_choice_question):
     multiple_choice_question["groups"][0]["varnames"].append("V9")
 
     question = Questions(**multiple_choice_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=1, page_number=1
     )
 
@@ -404,7 +414,7 @@ def test_multiple_choice_with_andere_in_text_no_warning(multiple_choice_question
     multiple_choice_question["groups"][0]["varnames"].append("V9")
 
     question = Questions(**multiple_choice_question)
-    question_dict, variables = parse_question(
+    question_dict, variables = extract_question_type(
         question, absolute_position=1, page_number=1
     )
 

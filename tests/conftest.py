@@ -37,12 +37,8 @@ def real_config():
         llm_model=os.getenv("LLM_MODEL", "mistralai/mistral-small-3.2-24b-instruct"),
         llm_key=os.getenv("OR_KEY", "test-key"),
         llm_base_url=os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
-        site_output_dir=os.getenv("SITE_OUTPUT_DIR", "/tmp/docs"),
         survey_id=os.getenv("SURVEY_ID", "test_survey"),
-        mkdocs_site_name=os.getenv("MKDOCS_SITE_NAME", "Test Survey"),
-        mkdocs_site_author=os.getenv("MKDOCS_SITE_AUTHOR", "Test Author"),
-        mkdocs_repo_url=os.getenv("MKDOCS_REPO_URL", ""),
-        mkdocs_logo_url=os.getenv("MKDOCS_LOGO_URL", ""),
+        processed_data_output_path=os.getenv("PROCESSED_DATA_OUTPUT_PATH"),
         db_host=os.getenv("DB_HOST", "localhost"),
         db_port=int(os.getenv("DB_PORT", "5432")),
         db_name=os.getenv("DB_NAME", "survey_data"),
@@ -439,6 +435,16 @@ def sample_processed_metadata(sample_parsed_metadata):
         )
     )
 
+    # Add anonymized_table column based on anonymization_type
+    final_metadata_df = final_metadata_df.with_columns(
+        pl.when(pl.col("anonymization_type") == "shuffle")
+        .then(pl.lit("_distributions"))
+        .when(pl.col("anonymization_type") == "aggregate")
+        .then(pl.lit("_categorical"))
+        .otherwise(pl.lit(None))
+        .alias("anonymized_table")
+    )
+
     # Create schema
     processed_results_schema = make_results_schema(final_metadata_df)
 
@@ -517,6 +523,25 @@ def sample_processed_results(sample_processed_metadata, sample_loaded_results):
     from plumberlama.transitions import process_poll_results
 
     return process_poll_results(sample_processed_metadata, sample_loaded_results)
+
+
+@pytest.fixture
+def sample_anonymized_results(sample_processed_results, sample_processed_metadata):
+    """Create an AnonymizedResultsState from processed results and metadata.
+
+    This fixture creates anonymized distributions and categorical data
+    from the sample processed results.
+
+    Returns:
+        AnonymizedResultsState with distributions_df and categorical_df
+    """
+    from plumberlama.transitions import anonymize_results
+
+    return anonymize_results(
+        sample_processed_results,
+        sample_processed_metadata.final_metadata_df,
+        load_counter=0,
+    )
 
 
 @pytest.fixture
@@ -722,11 +747,7 @@ def test_db_config(real_config):
         llm_model=real_config.llm_model,
         llm_key=real_config.llm_key,
         llm_base_url=real_config.llm_base_url,
-        site_output_dir=real_config.site_output_dir,
-        mkdocs_site_name=real_config.mkdocs_site_name,
-        mkdocs_site_author=real_config.mkdocs_site_author,
-        mkdocs_repo_url=real_config.mkdocs_repo_url,
-        mkdocs_logo_url=real_config.mkdocs_logo_url,
+        processed_data_output_path=None,
         db_host="localhost",
         db_port=5433,
         db_name="test_db",

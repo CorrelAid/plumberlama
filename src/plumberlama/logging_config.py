@@ -3,7 +3,7 @@ import logging
 from rich.logging import RichHandler
 
 
-def setup_logging(level: str = "INFO") -> logging.Logger:
+def setup_logging(level: str = "DEBUG") -> logging.Logger:
     """Configure logging with Rich handler."""
     # Create logger
     logger = logging.getLogger("plumberlama")

@@ -11,15 +11,15 @@ from plumberlama.logging_config import get_logger, setup_logging
 from plumberlama.states import LoadedState
 from plumberlama.transitions import (
     MetadataMismatchError,
-    TableNotFoundError,
+    anonymize_results,
     fetch_poll_metadata,
     fetch_poll_results,
-    generate_doc,
     load_data,
     parse_poll_metadata,
     preload_check,
     process_poll_metadata,
     process_poll_results,
+    save_processed_parquet,
 )
 
 logger = get_logger(__name__)
@@ -35,21 +35,17 @@ def load_config_from_env() -> Config:
         llm_model=os.getenv("LLM_MODEL", ""),
         llm_key=os.getenv("OR_KEY", ""),
         llm_base_url=os.getenv("LLM_BASE_URL", ""),
-        site_output_dir=os.getenv("SITE_OUTPUT_DIR", ""),
-        mkdocs_site_name=os.getenv("MKDOCS_SITE_NAME", ""),
-        mkdocs_site_author=os.getenv("MKDOCS_SITE_AUTHOR", ""),
-        mkdocs_repo_url=os.getenv("MKDOCS_REPO_URL", ""),
-        mkdocs_logo_url=os.getenv("MKDOCS_LOGO_URL", ""),
         db_host=os.getenv("DB_HOST", ""),
         db_port=int(os.getenv("DB_PORT", "5432")),
         db_name=os.getenv("DB_NAME", ""),
         db_user=os.getenv("DB_USER", ""),
         db_password=os.getenv("DB_PASSWORD", ""),
+        processed_data_output_path=os.getenv("PROCESSED_DATA_OUTPUT_PATH"),
     )
 
 
 def run_etl_pipeline() -> LoadedState:
-    """Run complete ETL pipeline: Fetch → Parse → Validate → Process (if first load) → Load."""
+    """Run complete ETL pipeline: Fetch → Parse → Validate → Process → (Optional: Save) → Anonymize → Load."""
     config = load_config_from_env()
 
     logger.info("=" * 60)
@@ -86,9 +82,24 @@ def run_etl_pipeline() -> LoadedState:
         existing_metadata_df=validated_metadata.existing_metadata_df,
     )
 
-    # Load data (metadata only inserted on first load)
+    # OPTIONAL: Save processed data to parquet before anonymization
+    if config.processed_data_output_path:
+        save_processed_parquet(results, config, validated_metadata.load_counter)
+
+    # Determine which metadata to use for anonymization
+    if validated_metadata.load_counter == 0:
+        metadata_for_anonymization = processed_metadata.final_metadata_df
+    else:
+        metadata_for_anonymization = validated_metadata.existing_metadata_df
+
+    # Anonymize results (shuffle/aggregate based on question type)
+    anonymized = anonymize_results(
+        results, metadata_for_anonymization, validated_metadata.load_counter
+    )
+
+    # Load anonymized data (metadata only inserted on first load)
     loaded_state = load_data(
-        results, validated_metadata, config, meta_state=processed_metadata
+        anonymized, validated_metadata, config, meta_state=processed_metadata
     )
 
     logger.info("=" * 60)
@@ -97,21 +108,6 @@ def run_etl_pipeline() -> LoadedState:
     logger.info("=" * 60)
 
     return loaded_state
-
-
-def generate_docs() -> LoadedState:
-    """Generate documentation from survey data."""
-    config = load_config_from_env()
-
-    try:
-        generate_doc(config)
-    except TableNotFoundError:
-        logger.error("Documentation generation aborted due to missing tables")
-        raise
-
-    logger.info("=" * 60)
-    logger.info("Documentation generated successfully!")
-    logger.info("=" * 60)
 
 
 @command()
@@ -123,18 +119,6 @@ def etl():
         sys.exit(0)
     except Exception as e:
         echo(f"ETL pipeline failed: {e}", err=True)
-        sys.exit(1)
-
-
-@command()
-def docs():
-    """Generate documentation for the survey."""
-    setup_logging(os.getenv("LOG_LEVEL", "INFO"))
-    try:
-        generate_docs()
-        sys.exit(0)
-    except Exception as e:
-        echo(f"Documentation generation failed: {e}", err=True)
         sys.exit(1)
 
 
@@ -189,10 +173,9 @@ def query(list_functions, function, args):
 
 @group()
 def main():
-    """plumberlama: Pipeline to process and document LamaPoll surveys."""
+    """plumberlama: Pipeline to process LamaPoll surveys."""
     pass
 
 
 main.add_command(etl)
-main.add_command(docs)
 main.add_command(query)

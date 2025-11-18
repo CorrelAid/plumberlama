@@ -1,7 +1,7 @@
 [project]
 name = "plumberlama"
 version = "0.1.0"
-description = "Pipeline to generate documentation for surveys and process and load results to a database"
+description = "Pipeline to process and load survey results to a database"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,8 +12,6 @@ dependencies = [
     "requests>=2.32.5",
     "rich>=14.1.0",
     "pytest>=8.4.2",
-    "mkdocs>=1.6.0",
-    "mkdocs-material>=9.5.0",
     "connectorx>=0.4.0",
     "click>=8.1.0",
     "pyarrow>=21.0.0",
@@ -28,6 +26,10 @@ dependencies = [
     "ruff>=0.14.0",
     "black>=25.9.0",
     "pre-commit>=4.3.0",
+    "seaborn>=0.13.2",
+    "scipy>=1.16.3",
+    "altair>=5.5.0",
+    "jupyter-contrib-nbextensions>=0.7.0",
 ]
 
 [project.scripts]
