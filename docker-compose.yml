@@ -18,44 +18,24 @@ services:
     networks:
       - plumberlama
 
-  # initialize site_output volume with correct permissions for nonroot user (UID 999)
-  # init-volume:
-  #   image: alpine:latest
-  #   container_name: plumberlama-init-volume
-  #   volumes:
-  #     - ./site:/app/site
-  #   command: sh -c "chown -R 999:999 /app/site && chmod -R 755 /app/site && echo 'Volume permissions set for UID 999'"
-  #   networks:
-  #     - plumberlama
-
-  # pipeline:
-  #   build: .
-  #   image: plumberlama:latest
-  #   container_name: plumberlama-pipeline
-  #   env_file:
-  #     - .env
-  #   user: "999:999"
-  #   environment:
-  #     # Database connection (override if needed)
-  #     DB_HOST: postgres
-  #     DB_PORT: 5432
-  #     DB_NAME: survey_data
-  #     DB_USER: plumberlama
-  #     DB_PASSWORD: plumberlama_dev
-  #     # Output directory - site will be built in /app/site
-  #     SITE_OUTPUT_DIR: /app/site
-  #   volumes:
-  #     # Mount site output directory for web server - accessible at ./site on host
-  #     - ./site:/app/site
-  #   depends_on:
-  #     init-volume:
-  #       condition: service_completed_successfully
-  #     postgres:
-  #       condition: service_healthy
-  #   networks:
-  #     - plumberlama
-
-
+  pipeline:
+    build: .
+    # or use a released image: ghcr.io/correlaid/plumberlama:0.1.0
+    container_name: plumberlama-pipeline
+    env_file:
+      - .env
+    environment:
+      # Connect to the postgres service above (overrides .env)
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: survey_data
+      DB_USER: plumberlama
+      DB_PASSWORD: plumberlama_dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - plumberlama
 
 volumes:
   postgres_data:

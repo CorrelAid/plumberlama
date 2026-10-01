@@ -40,7 +40,33 @@ docker compose up -d
 
 This will:
 - Start a PostgreSQL database
-- Run the ETL pipeline to fetch and process survey data
+- Run the ETL pipeline to fetch and process survey data (the `pipeline` service exits when done; check `docker compose logs pipeline`)
+
+Run it again for a new wave with `docker compose run --rm pipeline`.
+
+### Option 3: Use from Python
+
+```python
+from plumberlama import Config, run_etl_pipeline
+
+config = Config(
+    survey_id="my_survey",
+    lp_poll_id=123456,
+    lp_api_token="...",
+    lp_api_base_url="https://app.lamapoll.de/api/v2",
+    llm_model="anthropic/claude-sonnet-4.5",
+    llm_key="...",
+    llm_base_url="https://openrouter.ai/api/v1",
+    db_host="localhost",
+    db_port=5432,
+    db_name="survey_data",
+    db_user="plumberlama",
+    db_password="...",
+)
+run_etl_pipeline(config)  # or run_etl_pipeline() to read the environment variables below
+```
+
+The individual steps are available in `plumberlama.transitions` if you want to run or inspect them separately.
 
 ### Configuration
 

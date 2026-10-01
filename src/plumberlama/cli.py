@@ -44,9 +44,14 @@ def load_config_from_env() -> Config:
     )
 
 
-def run_etl_pipeline() -> LoadedState:
-    """Run complete ETL pipeline: Fetch → Parse → Validate → Process → (Optional: Save) → Anonymize → Load."""
-    config = load_config_from_env()
+def run_etl_pipeline(config: Config | None = None) -> LoadedState:
+    """Run complete ETL pipeline: Fetch → Parse → Validate → Process → (Optional: Save) → Anonymize → Load.
+
+    Args:
+        config: Pipeline configuration. Loaded from environment variables if omitted.
+    """
+    if config is None:
+        config = load_config_from_env()
 
     logger.info("=" * 60)
     logger.info(f"Starting ETL Pipeline for survey: {config.survey_id}")

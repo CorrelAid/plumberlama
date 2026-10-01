@@ -5,9 +5,6 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 RUN groupadd --system --gid 999 nonroot \
  && useradd --system --gid 999 --uid 999 --create-home nonroot
 
-# Install git for GitHub package installation
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
 # Install the project into `/app`
 WORKDIR /app
 
@@ -32,18 +29,7 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system .
 
-# Create directories with correct permissions for nonroot user
-RUN mkdir -p /app/docs /app/site && chown -R nonroot:nonroot /app
-
-# Create run script that executes both commands in sequence
-RUN echo '#!/bin/sh\n\
-set -e\n\
-echo "Running ETL pipeline..."\n\
-plumberlama etl\n\
-echo "Generating documentation..."\n\
-plumberlama docs\n\
-echo "Pipeline completed successfully!"' > /usr/local/bin/run-pipeline.sh \
-    && chmod +x /usr/local/bin/run-pipeline.sh
+RUN chown -R nonroot:nonroot /app
 
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
@@ -51,5 +37,4 @@ ENTRYPOINT []
 # Use the non-root user to run our application
 USER nonroot
 
-# Run both ETL and docs generation in sequence
-CMD ["run-pipeline.sh"]
+CMD ["plumberlama", "etl"]
