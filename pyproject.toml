@@ -1,6 +1,6 @@
 [project]
 name = "plumberlama"
-version = "0.1.0"
+version = "0.1.1"
 description = "Pipeline to process, anonymize and load LamaPoll survey results to a database"
 readme = "README.md"
 license = "MIT"
