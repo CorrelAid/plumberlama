@@ -774,7 +774,9 @@ def db_connection(docker_compose_test_db, monkeypatch):
     monkeypatch.setenv("DB_NAME", "test_db")
 
     # Override connection URI to use test container
-    connection_uri = "postgresql://test_user:test_password@localhost:5433/test_db"
+    connection_uri = (
+        "postgresql+psycopg2://test_user:test_password@localhost:5433/test_db"
+    )
     engine = create_engine(connection_uri)
 
     # Verify connection works
