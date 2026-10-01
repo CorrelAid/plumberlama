@@ -22,11 +22,11 @@ ENV UV_TOOL_BIN_DIR=/usr/local/bin
 
 # DEFAULT: Install from local source
 # This Dockerfile is designed for local development where you have the repo cloned.
-# To install from GitHub instead (for deployment without cloning), replace the next two lines with:
+# To install a released version from PyPI instead (for deployment without cloning), replace the next two lines with:
 #
-#   ARG GIT_REF=main
+#   ARG PLUMBERLAMA_VERSION=0.1.0
 #   RUN --mount=type=cache,target=/root/.cache/uv \
-#       uv pip install --system "plumberlama @ git+https://github.com/CorrelAid/plumberlama.git@${GIT_REF}"
+#       uv pip install --system "plumberlama==${PLUMBERLAMA_VERSION}"
 #
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \

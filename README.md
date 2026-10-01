@@ -10,10 +10,12 @@ It’s lama with one l! Process, anonymize and load survey results from LamaPoll
 
 ### Option 1: Install as Package
 
-Install plumberlama as a Python package, for example in a uv project:
+[![PyPI](https://img.shields.io/pypi/v/plumberlama)](https://pypi.org/project/plumberlama/)
+
+Install plumberlama from [PyPI](https://pypi.org/project/plumberlama/), for example in a uv project:
 
 ```bash
-uv pip install "git+https://github.com/CorrelAid/plumberlama.git"
+uv add plumberlama        # or: pip install plumberlama
 
 set -a && source .env && set +a
 
@@ -22,9 +24,15 @@ docker compose up -d postgres
 uv run plumberlama etl
 ```
 
+To install the latest unreleased version from GitHub instead:
+
+```bash
+uv add "git+https://github.com/CorrelAid/plumberlama.git"
+```
+
 ### Option 2: Use containerized pipeline
 
-See the example docker compose and Dockerfile for how this could work. The Dockerfile contained in this repository installs the python code from the local source. See the comment in it for how to install from Github repository.
+A prebuilt image is published for each release as `ghcr.io/correlaid/plumberlama:<version>`. See the example docker compose and Dockerfile for how this could work. The Dockerfile contained in this repository installs the python code from the local source. See the comment in it for how to install a released version from PyPI instead.
 
 ```bash
 docker compose up -d
