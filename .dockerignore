@@ -1,0 +1,27 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local data (may contain raw, non-anonymized survey responses)
+*.parquet
+*.duckdb
+*.duckdb.wal
+data/
+cache/
+notebooks/
+
+# Dev / build artifacts
+.git
+.github
+.venv
+.claude
+.pytest_cache
+.ruff_cache
+__pycache__/
+*.py[oc]
+build/
+dist/
+site/
+out/
+tests/

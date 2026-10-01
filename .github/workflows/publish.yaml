@@ -1,0 +1,49 @@
+name: publish-pypi
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Check tag matches package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION="$(uv version --short)"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Release tag v$TAG does not match pyproject version $VERSION"
+            exit 1
+          fi
+
+      - name: Run unit tests
+        run: uv run --frozen pytest tests/unit
+
+      - name: Build
+        run: uv build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/plumberlama
+    permissions:
+      id-token: write  # trusted publishing, no API token needed
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

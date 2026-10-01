@@ -2,7 +2,7 @@
 
 It’s lama with one l! Process, anonymize and load survey results from LamaPoll to simplify self-service data analysis and visualization.
 
-> **Note:** Documentation generation has been moved to a separate repository: [plumberlama-docs](https://github.com/correlaid/plumberlama-docs)
+> **Note:** Documentation generation has been moved to a separate repository: [plumberlama-docs](https://github.com/CorrelAid/plumberlama-docs)
 
 > **Note:** Explorative data analysis happens locally using the PROCESSED_DATA_OUTPUT_PATH environment variable. Make sure to not commit this file to the repo! *.parquet is added to the gitignore.
 
@@ -13,7 +13,7 @@ It’s lama with one l! Process, anonymize and load survey results from LamaPoll
 Install plumberlama as a Python package, for example in a uv project:
 
 ```bash
-uv pip install "git+https://github.com/correlaid/plumberlama.git"
+uv pip install "git+https://github.com/CorrelAid/plumberlama.git"
 
 set -a && source .env && set +a
 
@@ -41,7 +41,7 @@ Create a `.env` file with your configuration:
 ```bash
 # Survey Configuration
 SURVEY_ID=my_survey                    # Stable identifier across poll iterations
-LP_POLL_ID=1850964                     # LamaPoll poll ID
+LP_POLL_ID=123456                      # LamaPoll poll ID
 LP_API_TOKEN=your_token_here           # LamaPoll API token
 LP_API_BASE_URL=https://app.lamapoll.de/api/v2
 
@@ -210,7 +210,7 @@ See `src/plumberlama/extract/question_type.py` for full inference logic.
 
 When a question config is wrong in Lamapoll, we log a warning and add this to the documentation. Currently, this is only done for the case that a multiple choice question has an other field, but no text value:
 ```
- ⚠  Warning: Question 27937506: Wie bist du zu [U25] gekommen?
+ ⚠  Warning: Question 10000006: Wie hast du von uns erfahren?
    Variable V12 has 'Sonstiges:' but no text field.
    Suggestion: Configure as multiple_choice_other in LamaPoll
 ```
@@ -247,7 +247,7 @@ After running the ETL pipeline, you can query the PostgreSQL database using pred
 uv run plumberlama query --list
 
 # Query examples (table_prefix automatically set from SURVEY_ID in .env)
-uv run plumberlama query get_question_metadata 27937539        # By question ID
+uv run plumberlama query get_question_metadata 10000039        # By question ID
 uv run plumberlama query get_frequency_distribution Q6         # Categorical: counts & %
 uv run plumberlama query get_distribution_stats Q12            # Numeric: mean, median, std
 uv run plumberlama query get_time_series_analysis Q12          # Trends across waves

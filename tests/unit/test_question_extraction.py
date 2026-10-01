@@ -10,10 +10,10 @@ from plumberlama.generated_api_models import Questions
 def multiple_choice_other_question():
     """Question with 'other' option (V40, V41, V42 choices + V42.1 text field)"""
     return {
-        "id": 27937521,
+        "id": 10000021,
         "pollId": 123,
         "type": "CHOICE",
-        "question": {"de": "Warum engagierst du dich bei [U25]?"},
+        "question": {"de": "Warum engagierst du dich?"},
         "position": 8,
         "pageId": 1,
         "groups": [
@@ -42,7 +42,7 @@ def multiple_choice_other_question():
 def multiple_choice_other_empty_label_question():
     """Question with empty label for 'other' boolean"""
     return {
-        "id": 27937575,
+        "id": 10000075,
         "pollId": 123,
         "type": "CHOICE",
         "question": {"de": "Test question"},
@@ -74,7 +74,7 @@ def multiple_choice_other_empty_label_question():
 def matrix_question():
     """Matrix question with item labels"""
     return {
-        "id": 27937509,
+        "id": 10000009,
         "pollId": 123,
         "type": "MATRIX",
         "question": {"de": "Matrix question"},
@@ -102,7 +102,7 @@ def matrix_question():
 def input_multiple_question():
     """Multiple input question with group names"""
     return {
-        "id": 27937500,
+        "id": 10000000,
         "pollId": 123,
         "type": "INPUT",
         "question": {"de": "Multiple inputs"},
@@ -135,7 +135,7 @@ def input_multiple_question():
 def single_choice_question():
     """Single choice question with possible values"""
     return {
-        "id": 27937503,
+        "id": 10000003,
         "pollId": 123,
         "type": "CHOICE",
         "question": {"de": "Single choice"},
@@ -158,7 +158,7 @@ def single_choice_question():
 def scale_question():
     """Scale question with range"""
     return {
-        "id": 27937506,
+        "id": 10000006,
         "pollId": 123,
         "type": "SCALE",
         "question": {"de": "Rate this"},
@@ -306,12 +306,10 @@ def test_scale_with_range(scale_question):
 def test_scale_with_float_range_converts_to_int():
     """Test that scale question converts float range values to integers (issue #11)."""
     scale_question_float = {
-        "id": 27937507,
+        "id": 10000007,
         "pollId": 123,
         "type": "SCALE",
-        "question": {
-            "de": "Ich habe Bedenken, ob ich den Anforderungen gerecht werden kann."
-        },
+        "question": {"de": "Ich fühle mich gut vorbereitet."},
         "position": 6,
         "pageId": 1,
         "groups": [
@@ -345,7 +343,7 @@ def test_scale_with_float_range_converts_to_int():
 def test_matrix_with_float_range_converts_to_int():
     """Test that matrix question converts float range values to integers (issue #11)."""
     matrix_question_float = {
-        "id": 27937510,
+        "id": 10000010,
         "pollId": 123,
         "type": "MATRIX",
         "question": {"de": "Matrix with float range"},
