@@ -67,7 +67,7 @@ For contributing or local development:
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/CorrelAid/plumberlama.git
 cd plumberlama
 
 # Install dependencies and set up environment
@@ -79,6 +79,17 @@ uv run pre-commit install
 # Run e.g. unit tests after making changes
 uv run pytest tests/unit/ -s -vv
 ```
+
+### Releases
+
+Versions follow [Semantic Versioning](https://semver.org) and are managed by [release-please](https://github.com/googleapis/release-please) based on [Conventional Commits](https://www.conventionalcommits.org):
+
+- `fix: ...` → patch release
+- `feat: ...` → minor release
+- `feat!: ...` or a `BREAKING CHANGE:` footer → major release (minor while below 1.0.0)
+- `chore:`, `docs:`, `ci:`, `test:`, `refactor:` → no release
+
+release-please keeps a Release PR open that bumps the version and updates `CHANGELOG.md`. Merging it tags the release, publishes the package to [PyPI](https://pypi.org/p/plumberlama) and pushes the versioned Docker image to `ghcr.io/correlaid/plumberlama`. Don't edit the version in `pyproject.toml` by hand.
 
 ## Project Structure
 
